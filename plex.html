@@ -1,0 +1,2095 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>PLEX</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+
+<style>
+  :root {
+    /* Brighter, lighter purple palette — flatter / less flashy */
+    --purple: #7c3aed;
+    --purple-light: #a78bfa;
+    --purple-dark: #5b21b6;
+    --accent: #a78bfa;
+    --bg: #0d0d0d;
+    --bg2: #161616;
+    --bg3: #1f1f1f;
+    --card: #1a1a1a;
+    --border: #2a2a2a;
+    --text: #efecf7;
+    --text2: #707070;
+    --green: #34d399;
+    --red: #fb6f6f;
+    --gold: #ffb84d;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body {
+    font-family: 'Helvetica Neue', 'Arial Black', Arial, sans-serif;
+    font-weight: 800;
+    -webkit-font-smoothing: antialiased;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+    user-select: none;
+  }
+  .jp, .plex-title, .nav-title, .section-name, .modal-title, .settings-label,
+  .player-title, .music-title, .empty-state h3, .home-tagline {
+    font-family: 'Helvetica Neue', 'Arial Black', Arial, sans-serif;
+    font-weight: 900;
+  }
+
+  .ic { display: inline-block; vertical-align: middle; stroke: currentColor; }
+
+  /* SCREENS */
+  .screen { display: none; min-height: 100vh; flex-direction: column; }
+  .screen.active { display: flex; }
+
+  /* HOVER BLOOM — buttons inflate + float */
+  .bloom { transition: transform .12s ease; }
+  @media (hover: hover) {
+    .bloom:hover { transform: scale(1.02); }
+  }
+  .bloom:active { transform: scale(0.96); }
+
+  /* HOME */
+  #home {
+    align-items: center; justify-content: center;
+    background: var(--bg);
+    position: relative;
+  }
+  .home-logo { display: flex; flex-direction: column; align-items: center; gap: 14px; margin-bottom: 54px; }
+  .plex-icon {
+    width: 104px; height: 104px;
+    background: var(--purple);
+    border-radius: 26px;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 8px 30px rgba(157,92,255,.35);
+  }
+  .plex-icon .ic { color: #fff; stroke: #fff; }
+  .plex-title { font-size: 40px; letter-spacing: 8px; color: var(--text); }
+  .home-tagline { font-size: 13px; color: var(--text2); letter-spacing: 3px; }
+  .home-buttons { display: flex; flex-direction: column; gap: 14px; width: 270px; }
+  .btn-primary {
+    background: var(--purple); color: #fff; border: none;
+    padding: 16px; border-radius: 14px; font-size: 17px; font-weight: 600;
+    cursor: pointer; letter-spacing: .5px; display: flex; align-items: center; justify-content: center; gap: 10px;
+    font-family: 'Helvetica Neue', Arial, sans-serif, sans-serif;
+  }
+  .btn-secondary {
+    background: var(--bg3); color: var(--text); border: 1px solid var(--border);
+    padding: 15px; border-radius: 14px; font-size: 16px; font-weight: 600;
+    cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px;
+    font-family: 'Helvetica Neue', Arial, sans-serif, sans-serif;
+  }
+  .storage-bar-wrap { position: absolute; bottom: 38px; width: 82%; max-width: 360px; }
+  .storage-label { font-size: 12px; color: var(--text2); text-align: center; margin-bottom: 7px; }
+  .storage-bar { height: 6px; background: var(--bg3); border-radius: 6px; overflow: hidden; }
+  .storage-fill { height: 100%; background: var(--purple); border-radius: 6px; transition: width .4s; width: 0%; }
+  .pro-badge {
+    position: absolute; top: 46px; right: 18px;
+    background: var(--gold); color: #2a1500; font-size: 12px; font-weight: 700;
+    padding: 6px 12px; border-radius: 20px; cursor: pointer;
+    display: flex; align-items: center; gap: 5px;
+  }
+
+  /* NAV */
+  .nav {
+    background: var(--bg2); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; padding: 12px 14px; gap: 10px;
+    position: sticky; top: 0; z-index: 100;
+    padding-top: max(12px, env(safe-area-inset-top));
+  }
+  .nav-back, .nav-btn {
+    height: 38px; background: var(--bg3); border: 1px solid var(--border); border-radius: 11px;
+    color: var(--text); cursor: pointer; display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; gap: 5px; font-family: 'Helvetica Neue', Arial, sans-serif, sans-serif; font-size: 13px;
+  }
+  .nav-back { width: 38px; color: var(--accent); }
+  .nav-btn { padding: 0 12px; }
+  .nav-btn .ic, .nav-back .ic { color: var(--accent); }
+  .nav-title { font-size: 18px; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .nav-actions { display: flex; gap: 8px; }
+
+  /* BROWSE */
+  .section-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; padding: 18px; }
+  .section-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 18px;
+    padding: 22px 16px; display: flex; flex-direction: column; align-items: center; gap: 10px;
+    cursor: pointer; position: relative; overflow: hidden;
+  }
+  .section-emblem {
+    width: 60px; height: 60px; border-radius: 16px; display: flex; align-items: center; justify-content: center;
+  }
+  .section-emblem .ic { color: #fff; stroke: #fff; }
+  .section-card.media .section-emblem { background: #374151; }
+  .section-card.audio .section-emblem { background: #374151; }
+  .section-card.ebook .section-emblem { background: #374151; }
+  .section-card.favorites .section-emblem { background: #374151; }
+  .section-name { font-size: 17px; }
+  .section-count { font-size: 12px; color: var(--text2); }
+  .recent-head { font-size: 12px; color: var(--text2); margin-bottom: 10px; letter-spacing: 1px; text-transform: uppercase; }
+
+  /* FILE LIST */
+  .files-content { flex: 1; overflow-y: auto; padding: 10px; padding-bottom: 100px; }
+  .breadcrumb { font-size: 12px; color: var(--text2); padding: 6px 16px 0; }
+  .file-item {
+    background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+    padding: 11px 14px; margin-bottom: 8px; display: flex; align-items: center; gap: 12px; cursor: pointer;
+  }
+  .file-thumb {
+    width: 46px; height: 46px; border-radius: 11px; background: var(--bg3);
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0; overflow: hidden;
+  }
+  .file-thumb .ic { color: var(--accent); }
+  .file-thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .file-info { flex: 1; min-width: 0; }
+  .file-name { font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family:'Helvetica Neue', Arial, sans-serif; }
+  .file-meta { font-size: 11px; color: var(--text2); margin-top: 2px; }
+  .file-arrow { color: var(--text2); display: flex; }
+  .folder-item .file-thumb { background: rgba(157,92,255,.16); }
+
+  /* EMPTY STATE */
+  .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 60px 20px; color: var(--text2); text-align: center; }
+  .empty-state .ic { color: var(--border); }
+  .empty-state h3 { font-size: 18px; color: var(--text); }
+  .empty-state p { font-size: 13px; }
+
+  /* PLAYER */
+  .player-media { background: #000; width: 100%; aspect-ratio: 16/9; position: relative; }
+  .player-media video { width: 100%; height: 100%; }
+  .player-info { padding: 16px 16px 4px; }
+  .player-title { font-size: 20px; }
+  .player-sub { font-size: 13px; color: var(--text2); margin-top: 4px; }
+  .player-controls { padding: 12px 16px 16px; display: flex; flex-direction: column; gap: 14px; }
+  .seek-row { display: flex; flex-direction: column; gap: 6px; }
+  .seek-bar { width: 100%; height: 5px; -webkit-appearance: none; appearance: none; background: var(--bg3); border-radius: 5px; outline: none; cursor: pointer; }
+  .seek-bar::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; background: var(--purple); border-radius: 50%; cursor: pointer; }
+  .time-row { display: flex; justify-content: space-between; font-size: 11px; color: var(--text2); }
+  .ctrl-row { display: flex; align-items: center; justify-content: center; gap: 20px; }
+  .ctrl-btn {
+    background: var(--bg3); border: 1px solid var(--border); border-radius: 14px; color: var(--text);
+    cursor: pointer; width: 52px; height: 52px; display: flex; align-items: center; justify-content: center; position: relative;
+  }
+  .ctrl-btn .ic { color: var(--text); }
+  .ctrl-btn .skip-num { position: absolute; font-size: 9px; font-weight: 700; bottom: 7px; color: var(--text2); }
+  .ctrl-btn.main-play { width: 64px; height: 64px; background: var(--purple); border: none; border-radius: 50%; }
+  .ctrl-btn.main-play .ic { color: #fff; }
+  /* Toggle chips for loop / autoplay / shuffle — made prominent */
+  .toggle-chips { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+  .chip {
+    display: flex; align-items: center; gap: 7px; padding: 10px 16px; border-radius: 12px;
+    background: var(--bg3); border: 1px solid var(--border); color: var(--text2);
+    font-size: 13px; font-weight: 600; cursor: pointer; font-family:'Helvetica Neue', Arial, sans-serif;
+  }
+  .chip .ic { color: var(--text2); }
+  .chip.on { background: rgba(157,92,255,.2); border-color: var(--purple); color: var(--accent); }
+  .chip.on .ic { color: var(--accent); }
+  .vol-row { display: flex; align-items: center; gap: 10px; color: var(--text2); }
+  .vol-bar { flex: 1; height: 5px; -webkit-appearance: none; appearance: none; background: var(--bg3); border-radius: 5px; outline: none; cursor: pointer; }
+  .vol-bar::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; background: var(--purple-light); border-radius: 50%; }
+
+  /* AUDIO PLAYER */
+  #audio-player-screen { background: var(--bg); }
+  .music-art {
+    margin: 22px auto; width: 210px; height: 210px; background: var(--bg3);
+    border-radius: 26px; display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 14px 40px rgba(0,0,0,.35);
+  }
+  .music-art .ic { color: var(--accent); }
+  .music-info { text-align: center; padding: 0 20px; }
+  .music-title { font-size: 22px; }
+  .music-artist { font-size: 13px; color: var(--text2); margin-top: 4px; }
+  .music-controls { padding: 18px 20px; display: flex; flex-direction: column; gap: 16px; }
+  .lyrics-panel { margin: 0 16px; background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 16px; max-height: 150px; overflow-y: auto; font-size: 13px; line-height: 1.7; color: var(--text2); text-align: center; }
+  .lyrics-panel .pro-line { color: var(--gold); font-size: 11px; margin-top: 8px; }
+
+  /* EBOOK */
+  .ebook-toolbar { display: flex; gap: 8px; padding: 10px 14px; background: var(--bg2); border-bottom: 1px solid var(--border); overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .ebook-btn { flex-shrink: 0; padding: 8px 12px; background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; color: var(--text); font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 6px; white-space: nowrap; font-family:'Helvetica Neue', Arial, sans-serif; }
+  .ebook-btn .ic { color: var(--accent); }
+  .ebook-content { flex: 1; overflow-y: auto; padding: 22px; font-family: 'Helvetica Neue', Arial, Georgia, serif; font-size: 17px; line-height: 1.85; color: var(--text); max-width: 720px; margin: 0 auto; width: 100%; }
+  .ebook-content.sepia { background: #f3e7cc; color: #3d2f1c; }
+  .ebook-content.white { background: #fff; color: #1a1a1a; }
+  .ebook-content canvas { box-shadow: 0 2px 12px rgba(0,0,0,.3); }
+  .ebook-progress { height: 4px; background: var(--purple); width: 0%; transition: width .2s; }
+
+  /* MODALS */
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.7); z-index: 200; align-items: flex-end; justify-content: center; }
+  .modal-overlay.active { display: flex; }
+  .modal-sheet { background: var(--bg2); border-radius: 22px 22px 0 0; padding: 20px; width: 100%; max-width: 520px; max-height: 90vh; overflow-y: auto; animation: slideUp .28s ease; padding-bottom: max(20px, env(safe-area-inset-bottom)); }
+  .modal-handle { width: 40px; height: 4px; background: var(--border); border-radius: 4px; margin: 0 auto 16px; }
+  .modal-title { font-size: 19px; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+  .modal-close { float: right; background: none; border: none; color: var(--text2); cursor: pointer; display: flex; }
+
+  /* CONTEXT MENU */
+  .context-menu { display: none; position: fixed; z-index: 300; background: var(--bg2); border: 1px solid var(--border); border-radius: 16px; min-width: 210px; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,.5); }
+  .context-menu.active { display: block; }
+  .ctx-item { padding: 13px 16px; font-size: 15px; cursor: pointer; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--border); font-family:'Helvetica Neue', Arial, sans-serif; }
+  .ctx-item:last-child { border-bottom: none; }
+  .ctx-item .ic { color: var(--accent); }
+  .ctx-item.danger { color: var(--red); }
+  .ctx-item.danger .ic { color: var(--red); }
+
+  /* INFO */
+  .info-row { display: flex; justify-content: space-between; padding: 11px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+  .info-row:last-child { border-bottom: none; }
+  .info-label { color: var(--text2); }
+  .info-value { font-weight: 600; max-width: 60%; text-align: right; word-break: break-all; }
+
+  .input-field { width: 100%; padding: 13px; background: var(--bg3); border: 1px solid var(--border); border-radius: 12px; color: var(--text); font-size: 16px; outline: none; margin-bottom: 12px; font-family:'Helvetica Neue', Arial, sans-serif; }
+  .input-field:focus { border-color: var(--purple); }
+  .btn-full { width: 100%; padding: 14px; background: var(--purple); color: #fff; border: none; border-radius: 12px; font-size: 16px; font-weight: 600; cursor: pointer; font-family:'Helvetica Neue', Arial, sans-serif; }
+  .btn-full.secondary { background: var(--bg3); color: var(--text); margin-top: 8px; border: 1px solid var(--border); }
+
+  .upload-area { border: 2px dashed var(--purple); border-radius: 16px; padding: 34px; text-align: center; margin-bottom: 14px; cursor: pointer; }
+  .upload-area .ic { color: var(--accent); margin-bottom: 10px; }
+  .upload-text { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+  .upload-sub { font-size: 13px; color: var(--text2); }
+  #file-input, #folder-input { display: none; }
+
+  .subtitle-prompt { background: rgba(157,92,255,.16); border: 1px solid var(--purple); border-radius: 14px; padding: 14px; margin: 12px 0; font-size: 13px; text-align: center; color: var(--accent); }
+
+  .pro-card { background: var(--bg3); border: 1px solid var(--gold); border-radius: 18px; padding: 24px; text-align: center; margin: 14px 0; }
+  .pro-price { font-size: 36px; font-weight: 800; color: var(--gold); }
+  .pro-period { font-size: 14px; color: var(--text2); }
+  .pro-features { text-align: left; margin: 16px 0; display: flex; flex-direction: column; gap: 9px; }
+  .pro-feature { display: flex; align-items: center; gap: 10px; font-size: 14px; }
+  .pro-feature .ic { color: var(--gold); flex-shrink: 0; }
+  .btn-gold { background: var(--gold); color: #2a1500; border: none; padding: 14px; border-radius: 12px; font-size: 16px; font-weight: 700; cursor: pointer; width: 100%; font-family:'Helvetica Neue', Arial, sans-serif; }
+  .file-item.pro-locked { opacity: 0.75; }
+  .file-item.pro-locked .file-thumb { opacity: 0.6; }
+  .plan-toggle { display:flex; background:var(--bg3); border-radius:12px; padding:4px; gap:4px; margin-bottom:16px; }
+  .plan-btn { flex:1; padding:10px; border:none; border-radius:9px; font-size:14px; font-weight:800; cursor:pointer; background:transparent; color:var(--text2); font-family:'Helvetica Neue',Arial,sans-serif; transition:background .15s,color .15s; }
+  .plan-btn.active { background:var(--purple); color:#fff; }
+  .plan-save { font-size:11px; font-weight:900; color:var(--green); margin-left:5px; }
+  .btn-unsub { width:100%; padding:12px; background:transparent; color:var(--red); border:1px solid var(--red); border-radius:12px; font-size:14px; font-weight:800; cursor:pointer; margin-top:8px; font-family:'Helvetica Neue',Arial,sans-serif; }
+
+  .toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: var(--bg2); border: 1px solid var(--border); color: var(--text); padding: 11px 20px; border-radius: 12px; font-size: 14px; z-index: 500; opacity: 0; transition: opacity .25s; pointer-events: none; white-space: nowrap; box-shadow: 0 4px 20px rgba(0,0,0,.4); }
+  .toast.show { opacity: 1; }
+
+  .video-pick-item, .move-item { padding: 12px; background: var(--bg3); border-radius: 12px; margin-bottom: 8px; cursor: pointer; display: flex; align-items: center; gap: 10px; }
+  .video-pick-item .ic, .move-item .ic { color: var(--accent); }
+
+  .queue-wrap { background: var(--card); border-radius: 16px; margin: 0 16px; overflow: hidden; }
+  .queue-item { padding: 11px 14px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--border); cursor: pointer; }
+  .queue-item:last-child { border-bottom: none; }
+  .queue-item.playing { background: rgba(157,92,255,.14); }
+  .queue-num { width: 22px; text-align: center; font-size: 13px; color: var(--text2); }
+  .queue-num .ic { color: var(--accent); }
+  .queue-name { flex: 1; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .queue-dur { font-size: 11px; color: var(--text2); }
+  .queue-head { padding: 16px 16px 8px; font-size: 12px; color: var(--text2); letter-spacing: 1px; text-transform: uppercase; }
+
+  /* SETTINGS */
+  .settings-section { padding: 14px 16px; }
+  .settings-label { font-size: 12px; color: var(--text2); letter-spacing: 1px; text-transform: uppercase; padding: 0 4px; margin-bottom: 8px; }
+  .settings-row { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; cursor: pointer; }
+  .settings-row-left { display: flex; align-items: center; gap: 12px; }
+  .settings-row-left .ic { color: var(--accent); }
+  .settings-row.danger .ic { color: var(--red); }
+  .settings-row-text { font-size: 15px; font-weight: 600; font-family:'Helvetica Neue', Arial, sans-serif; }
+  .settings-row-sub { font-size: 12px; color: var(--text2); margin-top: 2px; }
+  .toggle { width: 50px; height: 28px; background: var(--bg3); border: 1px solid var(--border); border-radius: 14px; position: relative; transition: background .2s; cursor: pointer; flex-shrink: 0; }
+  .toggle.on { background: var(--purple); border-color: var(--purple); }
+  .toggle::after { content: ''; position: absolute; width: 22px; height: 22px; background: #fff; border-radius: 50%; top: 2px; left: 2px; transition: left .2s; }
+  .toggle.on::after { left: 25px; }
+
+  .search-bar { margin: 10px 16px; display: flex; align-items: center; gap: 8px; background: var(--bg3); border: 1px solid var(--border); border-radius: 12px; padding: 10px 14px; }
+  .search-bar .ic { color: var(--text2); }
+  .search-bar input { flex: 1; background: none; border: none; outline: none; color: var(--text); font-size: 15px; font-family:'Helvetica Neue', Arial, sans-serif; }
+
+  @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+
+  /* LOADING OVERLAY */
+  .loading-overlay { display:none; position:fixed; inset:0; z-index:9999; background:rgba(13,13,13,0.93); backdrop-filter:blur(4px); align-items:center; justify-content:center; flex-direction:column; gap:16px; }
+  .loading-overlay.active { display:flex; }
+  .loader-dots { display:flex; gap:10px; align-items:center; }
+  .loader-dots span { width:9px; height:9px; border-radius:50%; background:var(--text); animation:dotPulse 1.2s ease-in-out infinite; }
+  .loader-dots span:nth-child(2) { animation-delay:.15s; }
+  .loader-dots span:nth-child(3) { animation-delay:.3s; }
+  .loader-label { font-size:11px; letter-spacing:2px; font-weight:700; color:var(--text2); text-transform:uppercase; }
+  @keyframes dotPulse { 0%,80%,100%{transform:scale(0.5);opacity:0.25;} 40%{transform:scale(1);opacity:1;} }
+  /* Pro chip icon */
+  .pro-chip-icon { font-size:11px; margin-left:3px; color:var(--gold); }
+</style>
+</head>
+<body>
+
+<!-- HOME -->
+<div id="home" class="screen active">
+  <div class="pro-badge bloom" onclick="showPro()"><span data-icon="star" data-sz="14"></span> PRO</div>
+  <div class="home-logo">
+    <div class="plex-icon"><span data-icon="play" data-sz="52" data-fill="1"></span></div>
+    <div class="plex-title">PLEX</div>
+    <div class="home-tagline">PLEX MAKES FILES A FLEX</div>
+  </div>
+  <div class="home-buttons">
+    <button class="btn-primary bloom" onclick="showUploadModal()"><span data-icon="upload" data-sz="20"></span> Upload</button>
+    <button class="btn-secondary bloom" onclick="showScreen('browse')"><span data-icon="grid" data-sz="18"></span> Browse Library</button>
+    <button class="btn-secondary bloom" onclick="openSettings()" style="font-size:14px;padding:12px;"><span data-icon="settings" data-sz="17"></span> Settings</button>
+  </div>
+  <div class="storage-bar-wrap">
+    <div class="storage-label" id="storage-label">0 B / 256 GB used</div>
+    <div class="storage-bar"><div class="storage-fill" id="storage-fill"></div></div>
+  </div>
+</div>
+
+<!-- BROWSE -->
+<div id="browse" class="screen">
+  <div class="nav">
+    <button class="nav-back bloom" onclick="showScreen('home')"><span data-icon="chevron-left" data-sz="20"></span></button>
+    <span class="nav-title">Browse Library</span>
+    <div class="nav-actions">
+      <button class="nav-btn bloom" onclick="showUploadModal()"><span data-icon="upload" data-sz="16"></span></button>
+      <button class="nav-btn bloom" onclick="openSettings()"><span data-icon="settings" data-sz="16"></span></button>
+    </div>
+  </div>
+  <div class="section-grid">
+    <div class="section-card media bloom" onclick="openSection('media')">
+      <div class="section-emblem"><span data-icon="film" data-sz="30"></span></div>
+      <div class="section-name">Media</div>
+      <div class="section-count" id="media-count">0 files</div>
+    </div>
+    <div class="section-card audio bloom" onclick="openSection('audio')">
+      <div class="section-emblem"><span data-icon="music" data-sz="30"></span></div>
+      <div class="section-name">Audio</div>
+      <div class="section-count" id="audio-count">0 files</div>
+    </div>
+    <div class="section-card ebook bloom" onclick="openSection('ebook')">
+      <div class="section-emblem"><span data-icon="book" data-sz="30"></span></div>
+      <div class="section-name">eBooks</div>
+      <div class="section-count" id="ebook-count">0 files</div>
+    </div>
+    <div class="section-card favorites bloom" onclick="openSection('favorites')">
+      <div class="section-emblem"><span data-icon="star" data-sz="30"></span></div>
+      <div class="section-name">Favorites</div>
+      <div class="section-count" id="favorites-count">0 files</div>
+    </div>
+  </div>
+  <div style="padding: 0 18px 20px;">
+    <div class="recent-head">Recent</div>
+    <div id="recent-list"></div>
+    <div id="trash-section" style="display:none;margin-top:20px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div class="recent-head" style="margin-bottom:0">Recently Deleted</div>
+        <button onclick="clearTrash()" style="background:none;border:none;color:var(--red);font-size:12px;font-weight:800;cursor:pointer;letter-spacing:1px;text-transform:uppercase;padding:4px 8px;border-radius:6px;border:1px solid var(--red)">Clear</button>
+      </div>
+      <div id="trash-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- FILES -->
+<div id="files-screen" class="screen">
+  <div class="nav">
+    <button class="nav-back bloom" onclick="filesBack()"><span data-icon="chevron-left" data-sz="20"></span></button>
+    <span class="nav-title" id="files-title">Media</span>
+    <div class="nav-actions">
+      <button class="nav-btn bloom" id="create-folder-btn" onclick="showCreateFolder()"><span data-icon="folder-plus" data-sz="16"></span></button>
+      <button class="nav-btn bloom" onclick="showUploadModal()"><span data-icon="upload" data-sz="16"></span></button>
+      <button class="nav-btn bloom" onclick="toggleSort()"><span data-icon="sort" data-sz="16"></span></button>
+    </div>
+  </div>
+  <div class="search-bar">
+    <span data-icon="search" data-sz="16"></span>
+    <input type="text" placeholder="Search…" id="file-search" oninput="filterFiles()">
+  </div>
+  <div class="breadcrumb" id="breadcrumb-path"></div>
+  <div class="files-content" id="files-list"></div>
+</div>
+
+<!-- MEDIA PLAYER -->
+<div id="player-screen" class="screen">
+  <div class="nav">
+    <button class="nav-back bloom" onclick="closePlayer()"><span data-icon="chevron-left" data-sz="20"></span></button>
+    <span class="nav-title" id="player-nav-title">Now Playing</span>
+    <div class="nav-actions">
+      <button class="nav-btn bloom" id="sub-btn" onclick="toggleSubtitleTrack()" style="display:none">CC</button>
+    </div>
+  </div>
+  <div class="player-media">
+    <video id="main-video" controls playsinline preload="metadata" style="display:none"></video>
+    <img id="main-image" style="display:none; width:100%; height:100%; object-fit:contain; background:#000;">
+    <div id="media-fallback" style="display:none; text-align:center; padding:40px 20px; color:var(--text2);"></div>
+  </div>
+  <div class="player-info">
+    <div class="player-title" id="player-title"></div>
+    <div class="player-sub" id="player-subtitle-label">No subtitles</div>
+  </div>
+  <div class="player-controls">
+    <div class="seek-row">
+      <input type="range" class="seek-bar" id="seek-bar" value="0" min="0" max="100" step="0.1" oninput="seekVideo(this.value)">
+      <div class="time-row"><span id="cur-time">0:00</span><span id="dur-time">0:00</span></div>
+    </div>
+    <div class="ctrl-row">
+      <button class="ctrl-btn bloom" onclick="skip(-10)"><span data-icon="rewind" data-sz="22"></span><span class="skip-num">10</span></button>
+      <button class="ctrl-btn main-play bloom" id="play-pause-btn" onclick="togglePlay()"><span data-icon="play" data-sz="26" data-fill="1"></span></button>
+      <button class="ctrl-btn bloom" onclick="skip(10)"><span data-icon="forward" data-sz="22"></span><span class="skip-num">10</span></button>
+    </div>
+    <div class="toggle-chips">
+      <div class="chip bloom" id="media-autoplay-chip" onclick="toggleAutoplay()"><span data-icon="skip-forward" data-sz="16"></span> Autoplay next</div>
+      <div class="chip bloom" id="media-loop-chip" onclick="toggleLoop()"><span data-icon="repeat" data-sz="16"></span> Loop</div>
+      <div class="chip bloom" id="autosub-chip" onclick="autoGenSubtitles()"><span data-icon="subtitles" data-sz="16"></span> Autogenerate Subtitles <span id="autosub-pro-icon" data-icon="star" data-sz="13"></span></div>
+      <div class="chip bloom" onclick="toggleFullscreen()"><span data-icon="maximize" data-sz="16"></span> Fullscreen</div>
+    </div>
+    <div class="vol-row">
+      <span data-icon="volume" data-sz="18"></span>
+      <input type="range" class="vol-bar" id="vol-bar" value="100" min="0" max="100" oninput="setVolume(this.value)">
+    </div>
+  </div>
+  <div id="media-queue" style="padding: 0 0 80px;"></div>
+</div>
+
+<!-- AUDIO PLAYER -->
+<div id="audio-player-screen" class="screen">
+  <div class="nav">
+    <button class="nav-back bloom" onclick="closeAudioPlayer()"><span data-icon="chevron-left" data-sz="20"></span></button>
+    <span class="nav-title" id="audio-nav-title">Now Playing</span>
+    <div class="nav-actions">
+      <button class="nav-btn bloom" onclick="showQueuePanel()"><span data-icon="list" data-sz="16"></span></button>
+    </div>
+  </div>
+  <div class="music-art" id="music-art"><span data-icon="music" data-sz="72"></span></div>
+  <div class="music-info">
+    <div class="music-title" id="music-title">Track</div>
+    <div class="music-artist" id="music-artist"></div>
+  </div>
+  <div class="music-controls">
+    <div class="seek-row">
+      <input type="range" class="seek-bar" id="music-seek" value="0" min="0" max="100" step="0.1" oninput="seekMusic(this.value)">
+      <div class="time-row"><span id="music-cur">0:00</span><span id="music-dur">0:00</span></div>
+    </div>
+    <div class="ctrl-row">
+      <button class="ctrl-btn bloom" onclick="musicPrev()"><span data-icon="skip-back" data-sz="22"></span></button>
+      <button class="ctrl-btn main-play bloom" id="music-play-btn" onclick="toggleMusicPlay()"><span data-icon="play" data-sz="26" data-fill="1"></span></button>
+      <button class="ctrl-btn bloom" onclick="musicNext()"><span data-icon="skip-forward" data-sz="22"></span></button>
+    </div>
+    <div class="toggle-chips">
+      <div class="chip bloom" id="audio-autoplay-chip" onclick="toggleAutoplay()"><span data-icon="skip-forward" data-sz="16"></span> Autoplay next</div>
+      <div class="chip bloom" id="audio-loop-chip" onclick="toggleLoop()"><span data-icon="repeat" data-sz="16"></span> Loop</div>
+      <div class="chip bloom" id="audio-shuffle-chip" onclick="toggleShuffle()"><span data-icon="shuffle" data-sz="16"></span> Shuffle</div>
+    </div>
+    <div class="vol-row">
+      <span data-icon="volume" data-sz="18"></span>
+      <input type="range" class="vol-bar" id="music-vol" value="100" min="0" max="100" oninput="setMusicVol(this.value)">
+    </div>
+  </div>
+  <div class="lyrics-panel" id="lyrics-panel">
+    <div id="lyrics-text">No lyrics loaded.</div>
+    <div class="pro-line" id="lyrics-pro-line">
+      <span data-icon="star" data-sz="12"></span> PRO: AI-generated lyrics — <span onclick="showPro()" style="text-decoration:underline;cursor:pointer;">Upgrade</span>
+    </div>
+  </div>
+  <div id="music-queue" style="padding: 16px 0 80px;"></div>
+</div>
+
+<!-- EBOOK -->
+<div id="ebook-reader-screen" class="screen">
+  <div class="nav">
+    <button class="nav-back bloom" onclick="closeEbook()"><span data-icon="chevron-left" data-sz="20"></span></button>
+    <span class="nav-title" id="ebook-title-nav">eBook</span>
+    <div class="nav-actions">
+      <button class="nav-btn bloom" onclick="toggleEbookMenu()"><span data-icon="more" data-sz="16"></span></button>
+    </div>
+  </div>
+  <div class="ebook-progress" id="ebook-progress"></div>
+  <div class="ebook-toolbar" id="ebook-toolbar">
+    <button class="ebook-btn bloom" onclick="ebookFontSize(1)">A+</button>
+    <button class="ebook-btn bloom" onclick="ebookFontSize(-1)">A−</button>
+    <button class="ebook-btn bloom" onclick="setTheme('dark')"><span data-icon="moon" data-sz="14"></span> Dark</button>
+    <button class="ebook-btn bloom" onclick="setTheme('sepia')"><span data-icon="book" data-sz="14"></span> Sepia</button>
+    <button class="ebook-btn bloom" onclick="setTheme('white')"><span data-icon="sun" data-sz="14"></span> Light</button>
+    <button class="ebook-btn bloom" onclick="toggleEbookTTS()"><span data-icon="volume" data-sz="14"></span> Read Aloud</button>
+    <button class="ebook-btn bloom" onclick="addBookmark()"><span data-icon="bookmark" data-sz="14"></span> Bookmark</button>
+    <button class="ebook-btn bloom" onclick="showEbookInfo()"><span data-icon="info" data-sz="14"></span> Info</button>
+  </div>
+  <div class="ebook-content" id="ebook-content">
+    <p style="color: var(--text2); text-align: center; margin-top: 40px;">Open an eBook to start reading.</p>
+  </div>
+</div>
+
+<!-- SETTINGS -->
+<div id="settings-screen" class="screen">
+  <div class="nav">
+    <button class="nav-back bloom" onclick="goBackFromSettings()"><span data-icon="chevron-left" data-sz="20"></span></button>
+    <span class="nav-title">Settings</span>
+  </div>
+  <div class="settings-section">
+    <div class="settings-label">Account</div>
+    <div class="settings-row bloom" onclick="showPro()">
+      <div class="settings-row-left"><span data-icon="star" data-sz="22"></span><div><div class="settings-row-text">PLEX Pro</div><div class="settings-row-sub" id="pro-settings-sub">Upgrade for $12/mo</div></div></div>
+      <span data-icon="chevron-right" data-sz="18" style="color:var(--gold)"></span>
+    </div>
+    <div class="settings-row">
+      <div class="settings-row-left"><span data-icon="database" data-sz="22"></span><div><div class="settings-row-text">Storage</div><div class="settings-row-sub" id="settings-storage-sub">0 B of 256 GB used</div></div></div>
+    </div>
+  </div>
+  <div class="settings-section">
+    <div class="settings-label">Playback Defaults</div>
+    <div class="settings-row" onclick="toggleSettingToggle('autoplay-setting')">
+      <div class="settings-row-left"><span data-icon="skip-forward" data-sz="22"></span><div><div class="settings-row-text">Autoplay Next</div><div class="settings-row-sub">Auto-advance through a folder</div></div></div>
+      <div class="toggle" id="autoplay-setting"></div>
+    </div>
+    <div class="settings-row" onclick="toggleSettingToggle('loop-setting')">
+      <div class="settings-row-left"><span data-icon="repeat" data-sz="22"></span><div><div class="settings-row-text">Loop</div><div class="settings-row-sub">Repeat current item</div></div></div>
+      <div class="toggle" id="loop-setting"></div>
+    </div>
+    <div class="settings-row" onclick="toggleSettingToggle('shuffle-setting')">
+      <div class="settings-row-left"><span data-icon="shuffle" data-sz="22"></span><div><div class="settings-row-text">Shuffle</div><div class="settings-row-sub">Audio only</div></div></div>
+      <div class="toggle" id="shuffle-setting"></div>
+    </div>
+  </div>
+  <div class="settings-section">
+    <div class="settings-label">Info</div>
+    <div class="settings-row bloom" onclick="showScreen('unsupported-screen')">
+      <div class="settings-row-left"><span data-icon="file" data-sz="22"></span><div><div class="settings-row-text">Unsupported Formats</div><div class="settings-row-sub">What PLEX cannot preview</div></div></div>
+      <span data-icon="chevron-right" data-sz="18"></span>
+    </div>
+  </div>
+  <div class="settings-section">
+    <div class="settings-label">Privacy</div>
+    <div class="settings-row danger bloom" onclick="clearAll()">
+      <div class="settings-row-left"><span data-icon="trash" data-sz="22"></span><div><div class="settings-row-text" style="color:var(--red)">Clear All Data</div><div class="settings-row-sub">Delete every uploaded file</div></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- UPLOAD MODAL -->
+<div class="modal-overlay" id="upload-modal">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <button class="modal-close" onclick="closeModal('upload-modal')"><span data-icon="x" data-sz="22"></span></button>
+    <div class="modal-title"><span data-icon="upload" data-sz="20"></span> Upload Files</div>
+    <div class="upload-area bloom" onclick="document.getElementById('file-input').click()">
+      <span data-icon="upload" data-sz="44"></span>
+      <div class="upload-text">Tap to choose files</div>
+      <div class="upload-sub">Select as many as you like — hold to multi-select</div>
+    </div>
+    <button class="btn-full secondary" onclick="document.getElementById('folder-input').click()"><span data-icon="folder" data-sz="16"></span> Upload a whole folder</button>
+    <input type="file" id="file-input" multiple accept="*/*" onchange="handleFiles(this.files)">
+    <input type="file" id="folder-input" webkitdirectory directory multiple onchange="handleFiles(this.files)">
+    <div id="upload-status" style="font-size:13px; color:var(--text2); margin-top:12px;"></div>
+  </div>
+</div>
+
+<!-- CREATE FOLDER -->
+<div class="modal-overlay" id="folder-modal">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <button class="modal-close" onclick="closeModal('folder-modal')"><span data-icon="x" data-sz="22"></span></button>
+    <div class="modal-title" id="folder-modal-title">Create Folder</div>
+    <input type="text" class="input-field" id="folder-name-input" placeholder="Name…">
+    <button class="btn-full" onclick="createFolder()">Create</button>
+    <button class="btn-full secondary" onclick="closeModal('folder-modal')">Cancel</button>
+  </div>
+</div>
+
+<!-- RENAME -->
+<div class="modal-overlay" id="rename-modal">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <button class="modal-close" onclick="closeModal('rename-modal')"><span data-icon="x" data-sz="22"></span></button>
+    <div class="modal-title">Rename</div>
+    <input type="text" class="input-field" id="rename-input" placeholder="New name…">
+    <button class="btn-full" onclick="doRename()">Rename</button>
+    <button class="btn-full secondary" onclick="closeModal('rename-modal')">Cancel</button>
+  </div>
+</div>
+
+<!-- MOVE -->
+<div class="modal-overlay" id="move-modal">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <button class="modal-close" onclick="closeModal('move-modal')"><span data-icon="x" data-sz="22"></span></button>
+    <div class="modal-title">Move to…</div>
+    <div id="move-destinations"></div>
+    <button class="btn-full secondary" onclick="closeModal('move-modal')">Cancel</button>
+  </div>
+</div>
+
+<!-- INFO -->
+<div class="modal-overlay" id="info-modal">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <button class="modal-close" onclick="closeModal('info-modal')"><span data-icon="x" data-sz="22"></span></button>
+    <div class="modal-title"><span data-icon="info" data-sz="20"></span> File Info</div>
+    <div id="info-content"></div>
+  </div>
+</div>
+
+<!-- PRO -->
+<div class="modal-overlay" id="pro-modal">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <button class="modal-close" onclick="closeModal('pro-modal')"><span data-icon="x" data-sz="22"></span></button>
+    <div class="modal-title"><span data-icon="star" data-sz="20"></span> PLEX Pro</div>
+    <div id="pro-modal-content"><!-- filled by showPro() --></div>
+  </div>
+</div>
+
+<!-- SUBTITLE PICKER -->
+<div class="modal-overlay" id="subtitle-picker-modal">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <button class="modal-close" onclick="closeModal('subtitle-picker-modal')"><span data-icon="x" data-sz="22"></span></button>
+    <div class="modal-title"><span data-icon="film" data-sz="20"></span> Attach Subtitles</div>
+    <div class="subtitle-prompt">Now select which video these subtitles belong to.</div>
+    <div id="subtitle-video-list"></div>
+    <button class="btn-full secondary" onclick="closeModal('subtitle-picker-modal')">Cancel</button>
+  </div>
+</div>
+
+<!-- CONFIRM -->
+<div class="modal-overlay" id="confirm-modal">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="confirm-modal-title">Are you sure?</div>
+    <p id="confirm-modal-msg" style="font-size:14px;color:var(--text2);margin-bottom:20px;line-height:1.5;"></p>
+    <button class="btn-full" id="confirm-modal-yes" style="background:var(--red);">Delete</button>
+    <button class="btn-full secondary" onclick="closeModal('confirm-modal')">Cancel</button>
+  </div>
+</div>
+
+<!-- CONTEXT MENU -->
+<div class="context-menu" id="context-menu">
+  <div class="ctx-item" onclick="ctxAction('rename')"><span data-icon="pencil" data-sz="18"></span> Rename</div>
+  <div class="ctx-item" onclick="ctxAction('duplicate')"><span data-icon="copy" data-sz="18"></span> Duplicate</div>
+  <div class="ctx-item" onclick="ctxAction('move')"><span data-icon="move" data-sz="18"></span> Move</div>
+  <div class="ctx-item" onclick="ctxAction('compress')"><span data-icon="archive" data-sz="18"></span> Compress to ZIP</div>
+  <div class="ctx-item" onclick="ctxAction('share')"><span data-icon="share" data-sz="18"></span> Share</div>
+  <div class="ctx-item" onclick="ctxAction('info')"><span data-icon="info" data-sz="18"></span> Get Info</div>
+  <div class="ctx-item" id="ctx-fav-item" onclick="ctxAction('favorite')"><span data-icon="star" data-sz="18"></span> Add to Favorites</div>
+  <div class="ctx-item danger" onclick="ctxAction('delete')"><span data-icon="trash" data-sz="18"></span> Delete</div>
+</div>
+
+<div class="toast" id="toast"></div>
+<audio id="main-audio" style="display:none"></audio>
+
+<script>
+// ===================== ICON SYSTEM (purple SVG, no emoji) =====================
+const ICON = {
+  play: '<path d="M8 5v14l11-7z"/>',
+  pause: '<rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/>',
+  upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>',
+  grid: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/>',
+  settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
+  film: '<rect x="2" y="2" width="20" height="20" rx="2.5"/><line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="2" y1="7" x2="7" y2="7"/><line x1="2" y1="17" x2="7" y2="17"/><line x1="17" y1="17" x2="22" y2="17"/><line x1="17" y1="7" x2="22" y2="7"/>',
+  music: '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',
+  book: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>',
+  folder: '<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>',
+  'folder-plus': '<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/>',
+  image: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>',
+  file: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>',
+  'file-text': '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>',
+  subtitles: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="15"/>',
+  'chevron-left': '<polyline points="15 18 9 12 15 6"/>',
+  'chevron-right': '<polyline points="9 18 15 12 9 6"/>',
+  search: '<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
+  sort: '<line x1="3" y1="6" x2="13" y2="6"/><line x1="3" y1="12" x2="10" y2="12"/><line x1="3" y1="18" x2="7" y2="18"/><polyline points="15 7 18 4 21 7"/><line x1="18" y1="4" x2="18" y2="20"/>',
+  pencil: '<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z"/>',
+  copy: '<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
+  move: '<polyline points="5 9 2 12 5 15"/><polyline points="9 5 12 2 15 5"/><polyline points="15 19 12 22 9 19"/><polyline points="19 9 22 12 19 15"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/>',
+  archive: '<polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5" rx="1"/><line x1="10" y1="12" x2="14" y2="12"/>',
+  share: '<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"/><line x1="15.4" y1="6.5" x2="8.6" y2="10.5"/>',
+  info: '<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>',
+  star: '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>',
+  trash: '<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
+  repeat: '<polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>',
+  shuffle: '<polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/>',
+  'skip-forward': '<polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/>',
+  'skip-back': '<polygon points="19 20 9 12 19 4 19 20"/><line x1="5" y1="19" x2="5" y2="5"/>',
+  rewind: '<polyline points="11 19 2 12 11 5 11 19"/><polyline points="22 19 13 12 22 5 22 19"/>',
+  forward: '<polyline points="13 19 22 12 13 5 13 19"/><polyline points="2 19 11 12 2 5 2 19"/>',
+  maximize: '<path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>',
+  volume: '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07M19.07 4.93a10 10 0 0 1 0 14.14"/>',
+  list: '<line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>',
+  x: '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>',
+  database: '<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>',
+  more: '<circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/><circle cx="5" cy="12" r="1.5"/>',
+  moon: '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>',
+  sun: '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.2" y1="4.2" x2="5.6" y2="5.6"/><line x1="18.4" y1="18.4" x2="19.8" y2="19.8"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.2" y1="19.8" x2="5.6" y2="18.4"/><line x1="18.4" y1="5.6" x2="19.8" y2="4.2"/>',
+  bookmark: '<path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>',
+  download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>',
+  check: '<polyline points="20 6 9 17 4 12"/>',
+};
+function buildIcon(name, sz, fill) {
+  const inner = ICON[name] || ICON.file;
+  const f = fill ? 'currentColor' : 'none';
+  const sw = fill ? 0 : 2;
+  return `<svg class="ic" width="${sz}" height="${sz}" viewBox="0 0 24 24" fill="${f}" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
+}
+function renderIcons(root) {
+  (root || document).querySelectorAll('[data-icon]').forEach(el => {
+    const name = el.getAttribute('data-icon');
+    const sz = parseInt(el.getAttribute('data-sz') || '20');
+    const fill = el.getAttribute('data-fill') === '1';
+    el.innerHTML = buildIcon(name, sz, fill);
+    el.removeAttribute('data-icon');
+  });
+}
+
+// ===================== INDEXEDDB (blobs) + localStorage (metadata) =====================
+let idb = null;
+function openDB() {
+  return new Promise((resolve) => {
+    const req = indexedDB.open('plex-db', 1);
+    req.onupgradeneeded = e => { e.target.result.createObjectStore('blobs'); };
+    req.onsuccess = e => { idb = e.target.result; resolve(true); };
+    req.onerror = () => { idb = null; resolve(false); };
+  });
+}
+function idbPut(id, blob) {
+  return new Promise((res, rej) => {
+    if (!idb) return rej('no-idb');
+    const t = idb.transaction('blobs', 'readwrite');
+    t.objectStore('blobs').put(blob, id);
+    t.oncomplete = () => res(); t.onerror = () => rej(t.error);
+  });
+}
+function idbGet(id) {
+  return new Promise((res, rej) => {
+    if (!idb) return rej('no-idb');
+    const t = idb.transaction('blobs', 'readonly');
+    const rq = t.objectStore('blobs').get(id);
+    rq.onsuccess = () => res(rq.result); rq.onerror = () => rej(rq.error);
+  });
+}
+function idbDel(id) {
+  return new Promise((res) => {
+    if (!idb) return res();
+    const t = idb.transaction('blobs', 'readwrite');
+    t.objectStore('blobs').delete(id);
+    t.oncomplete = () => res();
+  });
+}
+
+const DB = {
+  files: JSON.parse(localStorage.getItem('plex_files') || '[]'),
+  folders: JSON.parse(localStorage.getItem('plex_folders') || '[]'),
+  settings: JSON.parse(localStorage.getItem('plex_settings') || '{}'),
+  subtitles: JSON.parse(localStorage.getItem('plex_subtitles') || '{}'),
+  bookmarks: JSON.parse(localStorage.getItem('plex_bookmarks') || '{}'),
+  highlights: JSON.parse(localStorage.getItem('plex_highlights') || '{}'),
+  favorites: JSON.parse(localStorage.getItem('plex_favorites') || '[]'),
+  trash: JSON.parse(localStorage.getItem('plex_trash') || '[]'),
+  isPro: localStorage.getItem('plex_pro') === 'true',
+  proAnnual: localStorage.getItem('plex_pro_annual') === 'true',
+};
+// Metadata is tiny — saving always succeeds, so progress is never lost.
+function save() {
+  localStorage.setItem('plex_files', JSON.stringify(DB.files));
+  localStorage.setItem('plex_folders', JSON.stringify(DB.folders));
+  localStorage.setItem('plex_settings', JSON.stringify(DB.settings));
+  localStorage.setItem('plex_subtitles', JSON.stringify(DB.subtitles));
+  localStorage.setItem('plex_bookmarks', JSON.stringify(DB.bookmarks));
+  localStorage.setItem('plex_highlights', JSON.stringify(DB.highlights));
+  localStorage.setItem('plex_favorites', JSON.stringify(DB.favorites));
+  localStorage.setItem('plex_trash', JSON.stringify(DB.trash));
+  localStorage.setItem('plex_pro', DB.isPro);
+  if (DB.proAnnual !== undefined) localStorage.setItem('plex_pro_annual', DB.proAnnual);
+}
+
+let currentSection = 'media';
+let settingsPrevScreen = 'home';
+let playerPrevScreen = 'browse';
+let ebookPrevScreen = 'browse';
+let currentFolder = null;
+let sortAsc = true;
+let autoplayOn = false, loopOn = false, shuffleOn = false;
+let currentMediaIndex = -1, currentMusicIndex = -1;
+let mediaSiblings = [];
+let pendingSrtFileId = null;
+let ebookFontSizeVal = 17, ebookTheme = 'dark', ebookCurrentFile = null;
+let activeURLs = [];
+
+// ===================== FILE TYPES =====================
+const TYPE_MAP = {
+  media: [
+    // common video
+    'mp4','mkv','avi','mov','wmv','flv','webm','m4v','3gp','3g2','ts','mts','m2ts','mpeg','mpg','ogv','rm','rmvb',
+    'divx','xvid','mp2','mpe','mpv','m2v','f4v','vob','asf','dv','mxf','drc','roq','yuv','amv','nsv','qt','bik',
+    'hevc','h264','h265',
+    // image (treated as media viewer)
+    'png','jpg','jpeg','gif','bmp','webp','tiff','tif','svg','heic','heif','ico','jfif','avif',
+    'raw','dng','cr2','cr3','nef','arw','orf','rw2','raf','sr2','pef','x3f','jxr','jp2','j2k',
+    'psd','ai','eps',
+  ],
+  audio: [
+    // common
+    'mp3','wav','flac','aac','ogg','wma','m4a','opus','aiff','aif','alac',
+    // less common
+    'ape','wv','mka','mid','midi','mod','amr','au','ra','caf','ac3','dts','pcm','tta','voc','gsm','spx',
+    // project formats (store & download, can't play natively)
+    'als','flp','logicx','ptx','band','cpr','rpp',
+  ],
+  ebook: [
+    // core
+    'pdf','epub','mobi','azw','azw3','kfx','fb2','djvu',
+    // comic/manga
+    'cbz','cbr','cb7','cbt',
+    // other ebook
+    'lit','pdb','prc','ibooks','opf','oxps','xps','tcr','tr2','rb','lrf','pml','zbook','ztxt','ebk',
+    // text reading
+    'txt','rtf','doc','docx','odt','md','htm','html','tex','srt',
+  ],
+};
+function getCategory(ext) {
+  ext = ext.toLowerCase();
+  if (TYPE_MAP.media.includes(ext)) return 'media';
+  if (TYPE_MAP.audio.includes(ext)) return 'audio';
+  if (TYPE_MAP.ebook.includes(ext)) return 'ebook';
+  return 'media';
+}
+function getExt(name) { return (name.split('.').pop() || '').toLowerCase(); }
+function isVideo(f) { return ['mp4','mkv','avi','mov','wmv','flv','webm','m4v','3gp','3g2','ts','mts','m2ts','mpeg','mpg','ogv','rm','rmvb','divx','xvid','f4v','vob','asf','dv','mxf','drc','roq','amv','nsv','qt','bik','hevc','h264','h265','mp2','mpe','mpv','m2v'].includes(getExt(f.name)); }
+function isImage(f) { return ['png','jpg','jpeg','gif','bmp','webp','heic','heif','tiff','tif','svg','jfif','ico','avif','raw','dng','cr2','cr3','nef','arw','orf','rw2','raf','sr2','pef','x3f','jxr','jp2','j2k','psd','ai','eps'].includes(getExt(f.name)); }
+function isSrt(f) { return getExt(f.name) === 'srt'; }
+function formatBytes(b) {
+  if (!b) return '0 B';
+  if (b < 1024) return b + ' B';
+  if (b < 1048576) return (b/1024).toFixed(1) + ' KB';
+  if (b < 1073741824) return (b/1048576).toFixed(1) + ' MB';
+  return (b/1073741824).toFixed(2) + ' GB';
+}
+function formatTime(s) {
+  if (!s || isNaN(s)) return '0:00';
+  const m = Math.floor(s/60), sec = Math.floor(s%60);
+  return m + ':' + String(sec).padStart(2,'0');
+}
+const FREE_FORMATS = {
+  media: ['mp4','mov','mkv','avi','webm','jpg','jpeg','png','gif','webp','heic'],
+  audio: ['mp3','wav','aac','m4a','flac','ogg','opus'],
+  ebook: ['epub','pdf','mobi','azw3','cbz','cbr','txt','docx'],
+};
+function isProFormat(f) {
+  const free = FREE_FORMATS[f.section];
+  return free ? !free.includes(f.ext) : false;
+}
+
+function fileIconName(f) {
+  const ext = f.ext;
+  if (isVideo(f)) return 'film';
+  if (TYPE_MAP.audio.includes(ext)) return 'music';
+  if (isImage(f)) return 'image';
+  if (ext === 'pdf') return 'file-text';
+  if (['epub','mobi','cbr','cbz','djvu'].includes(ext)) return 'book';
+  if (ext === 'srt') return 'subtitles';
+  if (['txt','md','rtf','doc','docx'].includes(ext)) return 'file-text';
+  return 'file';
+}
+
+// ===================== UNIQUE NAME =====================
+function uniqueName(name, section, folderId) {
+  const names = DB.files.filter(f => f.section === section && f.folderId === (folderId||null)).map(f => f.name);
+  if (!names.includes(name)) return name;
+  const dot = name.lastIndexOf('.');
+  const base = dot > -1 ? name.slice(0,dot) : name;
+  const ext = dot > -1 ? name.slice(dot) : '';
+  let i = 2;
+  while (names.includes(base + i + ext)) i++;
+  return base + i + ext;
+}
+
+// ===================== SCREENS / TOAST / MODALS =====================
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  if (id === 'browse') refreshBrowseCounts();
+  window.scrollTo(0,0);
+}
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+function showModal(id) { document.getElementById(id).classList.add('active'); }
+function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+function showUploadModal() { document.getElementById('upload-status').textContent=''; showModal('upload-modal'); }
+function openSettings() {
+  settingsPrevScreen = document.querySelector('.screen.active')?.id || 'home';
+  showScreen('settings-screen');
+}
+function goBackFromSettings() { showScreen(settingsPrevScreen); }
+function showLoader(msg) { document.getElementById('loader-label').textContent = msg||'Loading'; document.getElementById('loading-overlay').classList.add('active'); }
+function hideLoader() { document.getElementById('loading-overlay').classList.remove('active'); }
+
+// ===================== UPLOAD (multi-file, blobs to IndexedDB) =====================
+async function handleFiles(fileList) {
+  const files = Array.from(fileList);
+  if (!files.length) return;
+  const status = document.getElementById('upload-status');
+  let done = 0;
+  for (const file of files) {
+    const ext = getExt(file.name);
+    const section = getCategory(ext);
+    const destFolder = (currentSection === section) ? (currentFolder || null) : null;
+    const safeName = uniqueName(file.name, section, destFolder);
+    const id = Date.now() + '_' + Math.random().toString(36).slice(2);
+    const entry = { id, name: safeName, section, folderId: destFolder, size: file.size, ext, dateAdded: new Date().toISOString() };
+    try {
+      await idbPut(id, file);       // store the real blob
+      DB.files.push(entry);
+      save();                        // tiny metadata — always succeeds
+      done++;
+      refreshBrowseCounts();
+      refreshStorageBar();           // <-- now updates correctly
+      if (isSrt(entry)) { promptSrtAttach(entry); }
+    } catch (err) {
+      status.textContent = 'Storage error — try fewer/smaller files. (' + err + ')';
+    }
+    status.textContent = `Uploaded ${done} of ${files.length} — last: ${safeName} → ${section}`;
+  }
+  if (currentSection && document.getElementById('files-screen').classList.contains('active')) renderFileList();
+  document.getElementById('file-input').value = '';
+  document.getElementById('folder-input').value = '';
+}
+
+function promptSrtAttach(srtEntry) {
+  pendingSrtFileId = srtEntry.id;
+  const videos = DB.files.filter(f => f.section === 'media' && isVideo(f));
+  if (!videos.length) { toast('Upload a video first, then re-add the subtitles.'); return; }
+  document.getElementById('subtitle-video-list').innerHTML = videos.map(v => `
+    <div class="video-pick-item bloom" onclick="attachSrtToVideo('${v.id}')">
+      <span data-icon="film" data-sz="22"></span>
+      <div><div style="font-weight:600;font-size:14px">${v.name}</div><div style="font-size:11px;color:var(--text2)">${formatBytes(v.size)}</div></div>
+    </div>`).join('');
+  closeModal('upload-modal');
+  showModal('subtitle-picker-modal');
+  renderIcons(document.getElementById('subtitle-video-list'));
+}
+function attachSrtToVideo(videoId) {
+  if (!pendingSrtFileId) return;
+  DB.subtitles[videoId] = pendingSrtFileId; save();
+  toast('Subtitles attached!');
+  closeModal('subtitle-picker-modal');
+  pendingSrtFileId = null;
+}
+
+// ===================== BROWSE COUNTS =====================
+function refreshBrowseCounts() {
+  ['media','audio','ebook'].forEach(s => {
+    const n = DB.files.filter(f => f.section === s).length;
+    const el = document.getElementById(s+'-count');
+    if (el) el.textContent = n + ' file' + (n!==1?'s':'');
+  });
+  const favEl = document.getElementById('favorites-count');
+  if (favEl) favEl.textContent = DB.favorites.length + ' file' + (DB.favorites.length!==1?'s':'');
+  // Trash section
+  const trashSection = document.getElementById('trash-section');
+  const trashList = document.getElementById('trash-list');
+  if (trashSection && trashList) {
+    if (DB.trash.length) {
+      trashSection.style.display = '';
+      trashList.innerHTML = DB.trash.slice().reverse().map(f => `
+        <div class="file-item" style="opacity:0.7">
+          <div class="file-thumb"><span data-icon="${fileIconName(f)}" data-sz="22"></span></div>
+          <div class="file-info"><div class="file-name">${f.name}</div><div class="file-meta">Deleted ${new Date(f.deletedAt).toLocaleDateString()} · ${formatBytes(f.size)}</div></div>
+          <button onclick="recoverFile('${f.id}')" style="flex-shrink:0;background:none;border:1px solid var(--border);border-radius:8px;color:var(--text2);font-size:11px;font-weight:800;padding:5px 10px;cursor:pointer;letter-spacing:.5px;white-space:nowrap">Recover</button>
+        </div>`).join('');
+      renderIcons(trashList);
+    } else {
+      trashSection.style.display = 'none';
+    }
+  }
+  const recent = [...DB.files].sort((a,b) => b.dateAdded.localeCompare(a.dateAdded)).slice(0,5);
+  const rl = document.getElementById('recent-list');
+  if (!recent.length) { rl.innerHTML = '<div style="color:var(--text2);font-size:13px;text-align:center;padding:20px">No files yet. Press Upload to start.</div>'; return; }
+  rl.innerHTML = recent.map(f => {
+    const locked = isProFormat(f) && !DB.isPro;
+    return `<div class="file-item bloom${locked?' pro-locked':''}" onclick="openFile('${f.id}')" data-id="${f.id}">
+      <div class="file-thumb"><span data-icon="${fileIconName(f)}" data-sz="22"></span></div>
+      <div class="file-info"><div class="file-name">${f.name}</div><div class="file-meta">${f.section} · ${formatBytes(f.size)}${locked?' · <span style="color:var(--gold);font-weight:900">PRO</span>':''}</div></div>
+      <div class="file-arrow">${locked?'<span data-icon="star" data-sz="16" style="color:var(--gold)"></span>':'<span data-icon="chevron-right" data-sz="16"></span>'}</div>
+    </div>`;
+  }).join('');
+  renderIcons(rl); attachLongPress(rl);
+}
+
+// ===================== SECTION / FILE LIST =====================
+function openSection(section) {
+  currentSection = section; currentFolder = null;
+  const labels = {media:'Media', audio:'Audio', ebook:'eBooks', favorites:'Favorites'};
+  document.getElementById('files-title').textContent = labels[section] || section;
+  document.getElementById('folder-modal-title').textContent = section === 'audio' ? 'Create Playlist' : 'Create Folder';
+  // Hide folder/upload buttons for favorites view
+  const folderBtn = document.getElementById('create-folder-btn');
+  if (folderBtn) folderBtn.style.display = section === 'favorites' ? 'none' : '';
+  renderFileList();
+  showScreen('files-screen');
+}
+
+function renderFileList() {
+  const list = document.getElementById('files-list');
+  const search = document.getElementById('file-search').value.toLowerCase();
+  const folders = currentSection === 'favorites' ? [] : DB.folders.filter(f => f.section === currentSection && f.parentId === (currentFolder||null));
+  const files = currentSection === 'favorites'
+    ? DB.files.filter(f => DB.favorites.includes(f.id) && f.name.toLowerCase().includes(search))
+    : DB.files.filter(f => f.section === currentSection && f.folderId === (currentFolder||null) && f.name.toLowerCase().includes(search));
+  if (sortAsc) { folders.sort((a,b)=>a.name.localeCompare(b.name)); files.sort((a,b)=>a.name.localeCompare(b.name)); }
+  else { folders.sort((a,b)=>b.name.localeCompare(a.name)); files.sort((a,b)=>b.dateAdded.localeCompare(a.dateAdded)); }
+
+  const breadEl = document.getElementById('breadcrumb-path');
+  if (currentFolder) {
+    const fold = DB.folders.find(f => f.id === currentFolder);
+    breadEl.textContent = (currentSection==='audio'?'Audio':currentSection==='ebook'?'eBooks':'Media') + ' › ' + (fold ? fold.name : '');
+  } else breadEl.textContent = '';
+
+  if (!files.length && !folders.length) {
+    const ic = currentSection==='media'?'film':currentSection==='audio'?'music':'book';
+    list.innerHTML = `<div class="empty-state"><span data-icon="${ic}" data-sz="56"></span><h3>No files here</h3><p>Upload some ${currentSection} files to get started.</p></div>`;
+    renderIcons(list); return;
+  }
+  let html = '';
+  folders.forEach(folder => {
+    html += `<div class="file-item folder-item bloom" onclick="openFolder('${folder.id}')" data-folder-id="${folder.id}">
+      <div class="file-thumb"><span data-icon="folder" data-sz="22"></span></div>
+      <div class="file-info"><div class="file-name">${folder.name}</div><div class="file-meta">${DB.files.filter(f=>f.folderId===folder.id).length} items</div></div>
+      <div class="file-arrow"><span data-icon="chevron-right" data-sz="16"></span></div></div>`;
+  });
+  files.forEach(f => {
+    const locked = isProFormat(f) && !DB.isPro;
+    html += `<div class="file-item bloom${locked?' pro-locked':''}" onclick="openFile('${f.id}')" data-id="${f.id}">
+      <div class="file-thumb"><span data-icon="${fileIconName(f)}" data-sz="22"></span></div>
+      <div class="file-info"><div class="file-name">${f.name}</div><div class="file-meta">${formatBytes(f.size)} · ${f.ext.toUpperCase()}${locked?' · <span style="color:var(--gold);font-weight:900">PRO</span>':''} · ${new Date(f.dateAdded).toLocaleDateString()}</div></div>
+      <div class="file-arrow">${locked?'<span data-icon="star" data-sz="16" style="color:var(--gold)"></span>':'<span data-icon="chevron-right" data-sz="16"></span>'}</div></div>`;
+  });
+  list.innerHTML = html;
+  renderIcons(list); attachLongPress(list);
+}
+function openFolder(id) { currentFolder = id; renderFileList(); }
+function filesBack() {
+  if (currentFolder) {
+    const fold = DB.folders.find(f => f.id === currentFolder);
+    currentFolder = fold ? (fold.parentId || null) : null;
+    renderFileList();
+  } else showScreen('browse');
+}
+function filterFiles() { renderFileList(); }
+function toggleSort() { sortAsc = !sortAsc; renderFileList(); toast('Sorted ' + (sortAsc?'A→Z':'Newest first')); }
+
+// ===================== CREATE FOLDER =====================
+function showCreateFolder() { document.getElementById('folder-name-input').value = ''; showModal('folder-modal'); }
+function createFolder() {
+  const name = document.getElementById('folder-name-input').value.trim();
+  if (!name) { toast('Enter a name'); return; }
+  DB.folders.push({ id: Date.now()+'_f', name, section: currentSection, parentId: currentFolder || null });
+  save(); closeModal('folder-modal'); renderFileList();
+  toast((currentSection==='audio'?'Playlist':'Folder') + ' created!');
+}
+
+// ===================== OPEN FILE =====================
+function revokeURLs() { activeURLs.forEach(u => URL.revokeObjectURL(u)); activeURLs = []; }
+async function blobURL(id) { const b = await idbGet(id); if (!b) return null; const u = URL.createObjectURL(b); activeURLs.push(u); return u; }
+function openFile(id) {
+  const f = DB.files.find(x => x.id === id);
+  if (!f) return;
+  if (isProFormat(f) && !DB.isPro) { showPro(); return; }
+  if (f.section === 'media') openMediaPlayer(f);
+  else if (f.section === 'audio') openAudioPlayer(f);
+  else openEbook(f);
+}
+
+// ===================== MEDIA PLAYER =====================
+async function openMediaPlayer(f) {
+  const activeScreen = document.querySelector('.screen.active');
+  if (activeScreen && activeScreen.id !== 'player-screen') playerPrevScreen = activeScreen.id;
+  showLoader('Opening…');
+  revokeURLs();
+  const video = document.getElementById('main-video'), img = document.getElementById('main-image');
+  document.getElementById('player-title').textContent = f.name;
+  document.getElementById('player-nav-title').textContent = f.name;
+  video.style.display = 'none'; img.style.display = 'none';
+  const url = await blobURL(f.id);
+  hideLoader();
+  const fallback = document.getElementById('media-fallback');
+  fallback.style.display = 'none';
+  if (isImage(f)) {
+    img.src = url; img.style.display = 'block';
+    img.onerror = () => {
+      img.style.display = 'none';
+      fallback.style.display = 'block';
+      fallback.innerHTML = `<div style="text-align:center;padding:40px 20px;color:var(--text2)">
+        ${buildIcon('image',56,false)}
+        <p style="margin:20px 0 6px;font-size:18px;font-weight:900;color:var(--text)">Unsupported File Type</p>
+        <p style="font-size:14px;margin-bottom:6px">Sorry, PLEX does not support <b style="color:var(--text)">${f.ext.toUpperCase()}</b> image files.</p>
+        <p style="font-size:12px;margin-bottom:24px">Download it and open in a compatible image viewer.</p>
+        <a href="${url}" download="${escHtml(f.name)}" class="btn-full" style="display:inline-block;text-decoration:none;padding:13px 24px;max-width:260px">Download ${f.ext.toUpperCase()}</a>
+      </div>`;
+    };
+    document.getElementById('player-subtitle-label').textContent = f.ext.toUpperCase() + ' image';
+    document.getElementById('sub-btn').style.display = 'none';
+  } else if (isVideo(f)) {
+    video.src = url; video.style.display = 'block';
+    video.onerror = () => {
+      video.style.display = 'none';
+      fallback.style.display = 'block';
+      fallback.innerHTML = `<div style="text-align:center;padding:40px 20px;color:var(--text2)">
+        ${buildIcon('film',56,false)}
+        <p style="margin:20px 0 6px;font-size:18px;font-weight:900;color:var(--text)">Unsupported File Type</p>
+        <p style="font-size:14px;margin-bottom:6px">Sorry, PLEX does not support <b style="color:var(--text)">${f.ext.toUpperCase()}</b> video files.</p>
+        <p style="font-size:12px;margin-bottom:24px">Download it and open in VLC or another player.</p>
+        <a href="${url}" download="${escHtml(f.name)}" class="btn-full" style="display:inline-block;text-decoration:none;padding:13px 24px;max-width:260px">Download ${f.ext.toUpperCase()}</a>
+      </div>`;
+    };
+    setupVideoEvents();
+    const srtId = DB.subtitles[f.id];
+    if (srtId) {
+      const srtFile = DB.files.find(x => x.id === srtId);
+      if (srtFile) await applySrt(video, srtFile);
+      document.getElementById('player-subtitle-label').textContent = 'Subtitles: ' + (srtFile ? srtFile.name : 'None');
+      document.getElementById('sub-btn').style.display = '';
+    } else {
+      document.getElementById('player-subtitle-label').textContent = 'No subtitles';
+      document.getElementById('sub-btn').style.display = 'none';
+    }
+    video.play().catch(()=>{});
+  }
+  mediaSiblings = DB.files.filter(x => x.section==='media' && x.folderId===f.folderId && isVideo(x));
+  currentMediaIndex = mediaSiblings.findIndex(x => x.id === f.id);
+  renderMediaQueue(mediaSiblings, f.id);
+  syncChips();
+  showScreen('player-screen');
+}
+async function applySrt(videoEl, srtFile) {
+  videoEl.querySelectorAll('track').forEach(t => t.remove());
+  const url = await blobURL(srtFile.id);
+  const track = document.createElement('track');
+  track.kind='subtitles'; track.label=srtFile.name; track.srclang='en'; track.src=url; track.default=true;
+  videoEl.appendChild(track);
+  if (videoEl.textTracks[0]) videoEl.textTracks[0].mode = 'showing';
+}
+function setupVideoEvents() {
+  const video = document.getElementById('main-video'), seekBar = document.getElementById('seek-bar');
+  video.ontimeupdate = () => {
+    if (!video.duration) return;
+    seekBar.value = (video.currentTime/video.duration)*100;
+    document.getElementById('cur-time').textContent = formatTime(video.currentTime);
+    document.getElementById('dur-time').textContent = formatTime(video.duration);
+  };
+  video.onplay = () => setPlayIcon('play-pause-btn', true);
+  video.onpause = () => setPlayIcon('play-pause-btn', false);
+  video.onended = () => { if (loopOn){video.currentTime=0;video.play();return;} if (autoplayOn) playNextMedia(); };
+}
+function setPlayIcon(btnId, playing) {
+  document.getElementById(btnId).innerHTML = buildIcon(playing ? 'pause' : 'play', 26, true);
+}
+function seekVideo(v){ const x=document.getElementById('main-video'); if(x.duration) x.currentTime=(v/100)*x.duration; }
+function togglePlay(){ const v=document.getElementById('main-video'); v.paused?v.play():v.pause(); }
+function skip(s){ const v=document.getElementById('main-video'); v.currentTime=Math.max(0,Math.min(v.duration||0,v.currentTime+s)); }
+function setVolume(v){ document.getElementById('main-video').volume=v/100; }
+function playNextMedia(){
+  if (currentMediaIndex < mediaSiblings.length-1){ currentMediaIndex++; openMediaPlayer(mediaSiblings[currentMediaIndex]); }
+}
+function toggleFullscreen(){ const v=document.getElementById('main-video'); if(v.requestFullscreen)v.requestFullscreen(); else if(v.webkitEnterFullscreen)v.webkitEnterFullscreen(); }
+function closePlayer(){ const v=document.getElementById('main-video'); v.pause(); v.removeAttribute('src'); v.load(); revokeURLs(); showScreen(playerPrevScreen); }
+function toggleSubtitleTrack(){
+  const v=document.getElementById('main-video');
+  if (v.textTracks[0]){ v.textTracks[0].mode = v.textTracks[0].mode==='showing'?'hidden':'showing'; toast('Subtitles ' + (v.textTracks[0].mode==='showing'?'on':'off')); }
+}
+function renderMediaQueue(files, activeId){
+  const q = document.getElementById('media-queue');
+  if (files.length < 2){ q.innerHTML=''; return; }
+  q.innerHTML = '<div class="queue-head">Up Next</div><div class="queue-wrap">' + files.map((f,i)=>`
+    <div class="queue-item ${f.id===activeId?'playing':''}" onclick="openMediaPlayer(DB.files.find(x=>x.id==='${f.id}'))">
+      <div class="queue-num">${f.id===activeId?'<span data-icon=play data-sz=12 data-fill=1></span>':i+1}</div>
+      <div class="queue-name">${f.name}</div></div>`).join('') + '</div>';
+  renderIcons(q);
+}
+
+// ===================== AUDIO PLAYER =====================
+let musicSiblings = [];
+async function openAudioPlayer(f) {
+  const activeAScreen = document.querySelector('.screen.active');
+  if (activeAScreen && activeAScreen.id !== 'audio-player-screen') playerPrevScreen = activeAScreen.id;
+  showLoader('Opening…');
+  revokeURLs();
+  const audio = document.getElementById('main-audio');
+  const url = await blobURL(f.id);
+  hideLoader();
+  audio.src = url;
+  audio.onerror = async () => {
+    const dlUrl = await blobURL(f.id);
+    document.getElementById('audio-player-screen').innerHTML = `
+      <div class="nav">
+        <button class="nav-back bloom" onclick="closeAudioPlayer()"><span data-icon="chevron-left" data-sz="20"></span></button>
+        <span class="nav-title">${escHtml(f.name)}</span>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;padding:40px 24px;text-align:center;color:var(--text2)">
+        ${buildIcon('music',56,false)}
+        <p style="margin:20px 0 6px;font-size:18px;font-weight:900;color:var(--text)">Unsupported File Type</p>
+        <p style="font-size:14px;margin-bottom:6px">Sorry, PLEX does not support <b style="color:var(--text)">${f.ext.toUpperCase()}</b> audio files.</p>
+        <p style="font-size:12px;margin-bottom:24px">Download it and open in a compatible audio player.</p>
+        ${dlUrl ? `<a href="${dlUrl}" download="${escHtml(f.name)}" class="btn-full" style="display:inline-block;text-decoration:none;padding:13px 24px;max-width:260px">Download ${f.ext.toUpperCase()}</a>` : ''}
+      </div>`;
+    renderIcons(document.getElementById('audio-player-screen'));
+  };
+  document.getElementById('music-title').textContent = f.name.replace(/\.[^.]+$/,'');
+  document.getElementById('music-artist').textContent = f.ext.toUpperCase();
+  document.getElementById('audio-nav-title').textContent = f.name;
+  musicSiblings = DB.files.filter(x => x.section==='audio' && x.folderId===f.folderId);
+  currentMusicIndex = musicSiblings.findIndex(x => x.id === f.id);
+  audio.ontimeupdate = () => {
+    if (!audio.duration) return;
+    document.getElementById('music-seek').value = (audio.currentTime/audio.duration)*100;
+    document.getElementById('music-cur').textContent = formatTime(audio.currentTime);
+    document.getElementById('music-dur').textContent = formatTime(audio.duration);
+  };
+  audio.onplay = () => setPlayIcon('music-play-btn', true);
+  audio.onpause = () => setPlayIcon('music-play-btn', false);
+  audio.onended = () => {
+    if (loopOn){ audio.currentTime=0; audio.play(); return; }
+    if (shuffleOn){ playRandomMusic(); return; }
+    if (autoplayOn) musicNext();
+  };
+  audio.play().catch(()=>{});
+  renderMusicQueue(); syncChips();
+  showScreen('audio-player-screen');
+}
+function seekMusic(v){ const a=document.getElementById('main-audio'); if(a.duration) a.currentTime=(v/100)*a.duration; }
+function toggleMusicPlay(){ const a=document.getElementById('main-audio'); a.paused?a.play():a.pause(); }
+function musicNext(){ if(!musicSiblings.length)return; currentMusicIndex=(currentMusicIndex+1)%musicSiblings.length; openAudioPlayer(musicSiblings[currentMusicIndex]); }
+function musicPrev(){ if(!musicSiblings.length)return; currentMusicIndex=(currentMusicIndex-1+musicSiblings.length)%musicSiblings.length; openAudioPlayer(musicSiblings[currentMusicIndex]); }
+function playRandomMusic(){ if(!musicSiblings.length)return; currentMusicIndex=Math.floor(Math.random()*musicSiblings.length); openAudioPlayer(musicSiblings[currentMusicIndex]); }
+function setMusicVol(v){ document.getElementById('main-audio').volume=v/100; }
+function closeAudioPlayer(){ const a=document.getElementById('main-audio'); a.pause(); a.removeAttribute('src'); a.load(); revokeURLs(); showScreen(playerPrevScreen); }
+function showQueuePanel(){ document.getElementById('music-queue').scrollIntoView({behavior:'smooth'}); }
+function renderMusicQueue(){
+  const q = document.getElementById('music-queue');
+  if (musicSiblings.length < 2){ q.innerHTML=''; return; }
+  q.innerHTML = '<div class="queue-head">Queue</div><div class="queue-wrap">' + musicSiblings.map((f,i)=>`
+    <div class="queue-item ${i===currentMusicIndex?'playing':''}" onclick="openAudioPlayer(musicSiblings[${i}])">
+      <div class="queue-num">${i===currentMusicIndex?'<span data-icon=play data-sz=12 data-fill=1></span>':i+1}</div>
+      <div class="queue-name">${f.name.replace(/\.[^.]+$/,'')}</div><div class="queue-dur">${f.ext.toUpperCase()}</div></div>`).join('') + '</div>';
+  renderIcons(q);
+}
+
+// ===================== SHARED TOGGLES (loop / autoplay / shuffle) =====================
+function syncChips() {
+  document.getElementById('media-autoplay-chip').classList.toggle('on', autoplayOn);
+  document.getElementById('media-loop-chip').classList.toggle('on', loopOn);
+  document.getElementById('audio-autoplay-chip').classList.toggle('on', autoplayOn);
+  document.getElementById('audio-loop-chip').classList.toggle('on', loopOn);
+  document.getElementById('audio-shuffle-chip').classList.toggle('on', shuffleOn);
+  document.getElementById('autoplay-setting').classList.toggle('on', autoplayOn);
+  document.getElementById('loop-setting').classList.toggle('on', loopOn);
+  document.getElementById('shuffle-setting').classList.toggle('on', shuffleOn);
+}
+function toggleAutoplay(){ autoplayOn=!autoplayOn; DB.settings['autoplay-setting']=autoplayOn; save(); syncChips(); toast('Autoplay next: '+(autoplayOn?'ON':'OFF')); }
+function toggleLoop(){ loopOn=!loopOn; DB.settings['loop-setting']=loopOn; save(); syncChips(); toast('Loop: '+(loopOn?'ON':'OFF')); }
+function toggleShuffle(){ shuffleOn=!shuffleOn; DB.settings['shuffle-setting']=shuffleOn; save(); syncChips(); toast('Shuffle: '+(shuffleOn?'ON':'OFF')); }
+
+// ===================== EBOOK READER (real PDF rendering) =====================
+if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+async function openEbook(f) {
+  const activeEScreen = document.querySelector('.screen.active');
+  if (activeEScreen && activeEScreen.id !== 'ebook-reader-screen') ebookPrevScreen = activeEScreen.id;
+  ebookCurrentFile = f;
+  showLoader('Opening…');
+  showScreen('ebook-reader-screen');
+  document.getElementById('ebook-title-nav').textContent = f.name;
+  const content = document.getElementById('ebook-content');
+  content.style.fontSize = ebookFontSizeVal + 'px';
+  setTheme(ebookTheme);
+  content.innerHTML = '';
+  const ext = f.ext;
+  const blob = await idbGet(f.id);
+  if (!blob) { hideLoader(); content.innerHTML='<p style="text-align:center;color:var(--red)">File data missing.</p>'; return; }
+
+  try {
+    if (['txt','md','srt'].includes(ext)) {
+      const text = await blob.text();
+      content.innerHTML = '<pre style="white-space:pre-wrap;font-family:inherit;margin:0">' + escHtml(text) + '</pre>';
+    } else if (['html','htm'].includes(ext)) {
+      content.innerHTML = await blob.text();
+    } else if (ext === 'pdf' && window.pdfjsLib) {
+      await renderPDF(blob, content);
+    } else if (ext === 'pdf') {
+      const url = await blobURL(f.id);
+      content.innerHTML = `<iframe src="${url}" style="width:100%;height:80vh;border:none;border-radius:8px"></iframe>`;
+    } else if (ext === 'cbz') {
+      if (!window.JSZip) throw new Error('JSZip not loaded');
+      await renderCBZ(blob, content);
+    } else if (ext === 'cbr' || ext === 'cb7' || ext === 'cbt') {
+      await renderCBR(blob, content, f);
+    } else if (ext === 'epub') {
+      if (!window.JSZip) throw new Error('JSZip not loaded');
+      await renderEPUB(blob, content);
+    } else if (ext === 'docx') {
+      if (!window.mammoth) throw new Error('mammoth not loaded');
+      await renderDOCX(blob, content);
+    } else if (ext === 'fb2') {
+      await renderFB2(blob, content);
+    } else if (ext === 'rtf') {
+      await renderRTF(blob, content);
+    } else if (ext === 'odt') {
+      if (window.JSZip) await renderODT(blob, content);
+      else await showDownloadFallback(f, content, 'ODT');
+    } else {
+      await showDownloadFallback(f, content, ext.toUpperCase());
+    }
+  } catch (e) {
+    content.innerHTML = '<p style="text-align:center;color:var(--red)">Could not open this file. ('+e+')</p>';
+  } finally {
+    hideLoader();
+  }
+  // restore reading position
+  const savedPct = DB.settings['ebookPos_'+f.id];
+  document.getElementById('ebook-progress').style.width = (savedPct||0)+'%';
+  content.onscroll = updateEbookProgress;
+  if (savedPct) setTimeout(()=>{ content.scrollTop = ((content.scrollHeight-content.clientHeight)*savedPct)/100; }, 120);
+}
+
+// ===================== FORMAT RENDERERS =====================
+function showDownloadFallback(f, container, label) {
+  return blobURL(f.id).then(url => {
+    container.innerHTML = `<div style="text-align:center;padding:48px 24px;color:var(--text2)">
+      ${buildIcon('file',56,false)}
+      <p style="margin:20px 0 6px;font-size:18px;font-weight:900;color:var(--text)">Unsupported File Type</p>
+      <p style="font-size:14px;margin-bottom:6px">Sorry, PLEX does not support <b style="color:var(--text)">${label}</b> files.</p>
+      <p style="font-size:12px;margin-bottom:24px">Download it and open in a compatible app.</p>
+      ${url ? `<a href="${url}" download="${escHtml(f.name)}" class="btn-full" style="display:inline-block;text-decoration:none;padding:13px 24px;max-width:260px">Download ${label}</a>` : ''}
+    </div>`;
+  });
+}
+
+async function renderCBZ(blob, container) {
+  const zip = await JSZip.loadAsync(blob);
+  const imageFiles = [];
+  zip.forEach((path, file) => {
+    if (/\.(jpe?g|png|gif|webp|bmp)$/i.test(path) && !path.startsWith('__MACOSX') && !file.dir) {
+      imageFiles.push({ path, file });
+    }
+  });
+  imageFiles.sort((a, b) => a.path.localeCompare(b.path, undefined, { numeric: true }));
+  if (!imageFiles.length) { container.innerHTML = '<p style="text-align:center;color:var(--text2);padding:40px">No images found in this archive.</p>'; return; }
+  container.innerHTML = '<p style="text-align:center;color:var(--text2);font-size:13px;margin-bottom:16px">' + imageFiles.length + ' pages</p>';
+  for (const { file } of imageFiles) {
+    const data = await file.async('blob');
+    const url = URL.createObjectURL(data);
+    activeURLs.push(url);
+    const img = document.createElement('img');
+    img.src = url;
+    img.style.cssText = 'width:100%;display:block;margin-bottom:3px;border-radius:3px;';
+    container.appendChild(img);
+  }
+}
+
+// Pure-JS RAR4 extractor — handles uncompressed images (the common case for CBR comics)
+async function extractRAR4(blob) {
+  const buf = await blob.arrayBuffer();
+  const b = new Uint8Array(buf);
+
+  // RAR4 signature: 52 61 72 21 1A 07 00
+  const RAR4 = [0x52,0x61,0x72,0x21,0x1A,0x07,0x00];
+  // RAR5 signature: 52 61 72 21 1A 07 01 00
+  if (b[0]!==0x52||b[1]!==0x61||b[2]!==0x72||b[3]!==0x21||b[4]!==0x1A||b[5]!==0x07)
+    throw new Error('Not a RAR archive (bad signature)');
+  if (b[6]===0x01)
+    throw new Error('RAR5 format detected — convert this CBR to CBZ using Calibre or an online tool');
+  if (b[6]!==0x00)
+    throw new Error('Unknown RAR variant');
+
+  const u16 = p => (b[p] | (b[p+1]<<8)) >>> 0;
+  const u32 = p => (b[p] | (b[p+1]<<8) | (b[p+2]<<16) | (b[p+3]<<24)) >>> 0;
+
+  const images = [];
+  let pos = 7;
+  let compressed = 0;
+
+  while (pos < b.length - 7) {
+    const type   = b[pos+2];
+    const flags  = u16(pos+3);
+    const headSz = u16(pos+5);
+    if (!headSz || headSz > b.length) break;
+
+    if (type === 0x74) {
+      let packSz  = u32(pos+7);
+      const method = b[pos+25];
+      const nameSz = u16(pos+26);
+      let nameOff  = pos+32;
+
+      if (flags & 0x100) {   // large file flag — high 32-bits of sizes
+        packSz = u32(pos+7) + u32(pos+32)*4294967296;
+        nameOff = pos+40;
+      }
+
+      const nameBytes = b.slice(nameOff, nameOff+nameSz);
+      const name = (flags & 0x200)
+        ? new TextDecoder().decode(nameBytes)
+        : Array.from(nameBytes, c => String.fromCharCode(c)).join('');
+
+      const baseName = name.split(/[\\/]/).pop();
+      const dataStart = pos+headSz;
+
+      if (/\.(jpe?g|png|gif|webp|bmp)$/i.test(baseName)) {
+        if (method === 0x30) {
+          // Stored (no compression) — extract raw bytes directly
+          images.push({ name: baseName, data: b.slice(dataStart, dataStart+packSz) });
+        } else {
+          compressed++;
+        }
+      }
+      pos = dataStart + packSz;
+
+    } else {
+      const addSz = (flags & 0x8000) ? u32(pos+7) : 0;
+      pos += headSz + addSz;
+    }
+  }
+
+  if (!images.length) {
+    if (compressed > 0)
+      throw new Error('Found ' + compressed + ' image(s) but they use RAR compression. Convert this CBR to CBZ using Calibre (free) or an online converter.');
+    throw new Error('No images found in RAR archive');
+  }
+  return images;
+}
+
+async function renderCBR(blob, container, f) {
+  const target = f || ebookCurrentFile;
+  showLoader('Opening archive…');
+  const errors = [];
+
+  // Step 1: Try JSZip (covers CBR files that are actually ZIP)
+  try {
+    const zip = await JSZip.loadAsync(blob);
+    const imgs = [];
+    zip.forEach((path, file) => {
+      if (/\.(jpe?g|png|gif|webp|bmp)$/i.test(path) && !path.startsWith('__MACOSX') && !file.dir)
+        imgs.push({ path, file });
+    });
+    if (imgs.length) {
+      imgs.sort((a,b) => a.path.localeCompare(b.path,undefined,{numeric:true}));
+      hideLoader();
+      container.innerHTML = `<p style="text-align:center;color:var(--text2);font-size:13px;margin-bottom:16px">${imgs.length} pages</p>`;
+      for (const {file} of imgs) {
+        const data = await file.async('blob');
+        const url = URL.createObjectURL(data); activeURLs.push(url);
+        const img = document.createElement('img');
+        img.src = url; img.style.cssText='width:100%;display:block;margin-bottom:3px;border-radius:3px;';
+        container.appendChild(img);
+      }
+      return;
+    }
+    errors.push('ZIP reader: opened but found no images');
+  } catch(e) { errors.push('ZIP reader: ' + e.message); }
+
+  // Step 2: Built-in RAR4 reader (zero dependencies)
+  try {
+    const images = await extractRAR4(blob);
+    images.sort((a,b) => a.name.localeCompare(b.name,undefined,{numeric:true}));
+    hideLoader();
+    container.innerHTML = `<p style="text-align:center;color:var(--text2);font-size:13px;margin-bottom:16px">${images.length} pages</p>`;
+    for (const {name, data} of images) {
+      const ext2 = name.split('.').pop().toLowerCase();
+      const mime = {png:'image/png',gif:'image/gif',webp:'image/webp',bmp:'image/bmp'}[ext2]||'image/jpeg';
+      const url = URL.createObjectURL(new Blob([data],{type:mime})); activeURLs.push(url);
+      const img = document.createElement('img');
+      img.src = url; img.style.cssText='width:100%;display:block;margin-bottom:3px;border-radius:3px;';
+      container.appendChild(img);
+    }
+    return;
+  } catch(e) { errors.push('RAR reader: ' + e.message); }
+
+  // Step 3: libarchive.js — fetch source + inject as script (bypasses file:// module restriction)
+  try {
+    if (!window._libArchive) {
+      // fetch() works from file:// even when import() doesn't
+      const [libSrc, workerSrc] = await Promise.all([
+        fetch('https://cdn.jsdelivr.net/npm/libarchivejs@0.1.4/dist/libarchive.js').then(r => r.text()),
+        fetch('https://cdn.jsdelivr.net/npm/libarchivejs@0.1.4/dist/worker-bundle.js').then(r => r.text()),
+      ]);
+      // Strip ES module syntax so it can run as a plain script
+      const cleanSrc = libSrc
+        .replace(/^\s*import\s.+$/gm, '')
+        .replace(/^\s*export\s+default\s+/m, 'window._libArchiveClass = ')
+        .replace(/^\s*export\s+\{[^}]+\}/gm, '');
+      const s = document.createElement('script');
+      s.textContent = cleanSrc;
+      document.head.appendChild(s);
+      if (!window._libArchiveClass) throw new Error('Archive class not found after inject');
+      const workerUrl = URL.createObjectURL(new Blob([workerSrc], { type: 'application/javascript' }));
+      await window._libArchiveClass.init({ workerUrl });
+      window._libArchive = window._libArchiveClass;
+    }
+    const fileObj = new File([blob], target?.name || 'comic.cbr', { type: 'application/octet-stream' });
+    const archive = await window._libArchive.open(fileObj);
+    const extracted = await archive.extractFiles();
+    const flat = [];
+    (function flatten(obj, prefix) {
+      for (const [k, v] of Object.entries(obj)) {
+        if (v && v.content instanceof ArrayBuffer) flat.push({ name: prefix + k, content: v.content });
+        else if (v && typeof v === 'object' && !v.content) flatten(v, prefix + k + '/');
+      }
+    })(extracted, '');
+    const pages = flat
+      .filter(x => /\.(jpe?g|png|gif|webp|bmp)$/i.test(x.name))
+      .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+    if (!pages.length) throw new Error('Extracted archive but found no images inside');
+    hideLoader();
+    container.innerHTML = '<p style="text-align:center;color:var(--text2);font-size:13px;margin-bottom:16px">' + pages.length + ' pages</p>';
+    for (const { name, content } of pages) {
+      const ext2 = name.split('.').pop().toLowerCase();
+      const mime = { png:'image/png', gif:'image/gif', webp:'image/webp', bmp:'image/bmp' }[ext2] || 'image/jpeg';
+      const url = URL.createObjectURL(new Blob([content], { type: mime }));
+      activeURLs.push(url);
+      const img = document.createElement('img');
+      img.src = url; img.style.cssText = 'width:100%;display:block;margin-bottom:3px;border-radius:3px;';
+      container.appendChild(img);
+    }
+    return;
+  } catch(e) { errors.push('WASM reader: ' + e.message); }
+
+  // Fallback
+  hideLoader();
+  const dlUrl = target?.id ? await blobURL(target.id) : null;
+  container.innerHTML = `
+    <div style="text-align:center;padding:30px 20px;color:var(--text2)">
+      ${buildIcon('book',48,false)}
+      <p style="margin:14px 0 4px;font-size:16px;font-weight:700;color:var(--text)">${escHtml(target?.name||'')}</p>
+      <p style="font-size:14px;margin-bottom:6px">Sorry, PLEX does not support <b style="color:var(--text)">CBR</b> files (RAR-compressed comics).</p>
+      <p style="font-size:12px;margin-bottom:16px">Convert to CBZ to open it here — CBZ is identical but uses ZIP instead of RAR.</p>
+      <div style="background:var(--bg3);border-radius:10px;padding:14px;text-align:left;font-size:12px;margin-bottom:16px;line-height:1.9">
+        <b style="color:var(--accent)">Convert CBR → CBZ:</b><br>
+        1. Install <b>The Unarchiver</b> (free · Mac App Store)<br>
+        2. Double-click .cbr to extract images<br>
+        3. Select all → right-click → <b>Compress</b><br>
+        4. Rename .zip → <b>.cbz</b> → upload to PLEX ✓
+      </div>
+      ${dlUrl?`<a href="${dlUrl}" download="${escHtml(target?.name||'file.cbr')}" class="btn-full" style="display:inline-block;text-decoration:none;padding:12px 20px;max-width:260px;margin-top:4px">Download CBR</a>`:''}
+    </div>`;
+}
+
+async function renderEPUB(blob, container) {
+  const zip = await JSZip.loadAsync(blob);
+  const containerXml = await zip.file('META-INF/container.xml')?.async('text');
+  if (!containerXml) throw new Error('Invalid EPUB: no container.xml');
+  const opfPath = containerXml.match(/full-path="([^"]+)"/i)?.[1];
+  if (!opfPath) throw new Error('Invalid EPUB: OPF path not found');
+  const opfDir = opfPath.includes('/') ? opfPath.slice(0, opfPath.lastIndexOf('/') + 1) : '';
+  const opfText = await zip.file(opfPath)?.async('text');
+  if (!opfText) throw new Error('OPF file missing');
+  const opfDoc = new DOMParser().parseFromString(opfText, 'application/xml');
+  const manifest = {};
+  opfDoc.querySelectorAll('manifest item').forEach(item => {
+    manifest[item.getAttribute('id')] = { href: item.getAttribute('href'), type: item.getAttribute('media-type') };
+  });
+  const spineIds = [...opfDoc.querySelectorAll('spine itemref')].map(i => i.getAttribute('idref'));
+  container.innerHTML = '';
+  for (const idref of spineIds) {
+    const item = manifest[idref];
+    if (!item) continue;
+    const fullPath = opfDir + item.href;
+    const file = zip.file(fullPath) || zip.file(item.href);
+    if (!file) continue;
+    const text = await file.async('text');
+    const doc = new DOMParser().parseFromString(text, 'text/html');
+    const div = document.createElement('div');
+    div.style.cssText = 'margin-bottom:28px;padding-bottom:28px;border-bottom:1px solid rgba(255,255,255,.07)';
+    div.innerHTML = doc.body ? doc.body.innerHTML : text;
+    // inline images from zip
+    for (const img of [...div.querySelectorAll('img')]) {
+      const src = img.getAttribute('src');
+      if (!src || src.startsWith('data:') || src.startsWith('http')) continue;
+      const imgPath = opfDir + decodeURIComponent(src);
+      const imgFile = zip.file(imgPath) || zip.file(decodeURIComponent(src));
+      if (imgFile) {
+        const imgBlob = await imgFile.async('blob');
+        const url = URL.createObjectURL(imgBlob);
+        activeURLs.push(url);
+        img.src = url;
+      }
+    }
+    // remove scripts/styles that would break the reader
+    div.querySelectorAll('script,style,link').forEach(el => el.remove());
+    container.appendChild(div);
+  }
+  if (!container.children.length) container.innerHTML = '<p style="text-align:center;color:var(--text2);padding:40px">Could not extract EPUB content.</p>';
+}
+
+async function renderDOCX(blob, container) {
+  const buf = await blob.arrayBuffer();
+  const result = await mammoth.convertToHtml({ arrayBuffer: buf });
+  container.innerHTML = '<div style="max-width:680px;margin:0 auto">' + result.value + '</div>';
+}
+
+async function renderFB2(blob, container) {
+  const text = await blob.text();
+  const doc = new DOMParser().parseFromString(text, 'application/xml');
+  const body = doc.querySelector('body');
+  if (!body) { container.innerHTML = '<p style="text-align:center;color:var(--red)">Could not parse FB2 file.</p>'; return; }
+  const div = document.createElement('div');
+  div.style.maxWidth = '680px'; div.style.margin = '0 auto';
+  // FB2 tags → HTML equivalents
+  div.innerHTML = body.innerHTML
+    .replace(/<title>/gi,'<h2>').replace(/<\/title>/gi,'</h2>')
+    .replace(/<section/gi,'<div').replace(/<\/section>/gi,'</div>')
+    .replace(/<p>/gi,'<p style="margin-bottom:1em">');
+  container.appendChild(div);
+}
+
+async function renderRTF(blob, container) {
+  const text = await blob.text();
+  const plain = text
+    .replace(/\\[a-z]+\d* ?/g, '')
+    .replace(/[{}\\]/g, '')
+    .replace(/\r\n|\r|\n/g, '\n')
+    .trim();
+  container.innerHTML = '<pre style="white-space:pre-wrap;font-family:inherit;margin:0">' + escHtml(plain) + '</pre>';
+}
+
+async function renderODT(blob, container) {
+  const zip = await JSZip.loadAsync(blob);
+  const contentXml = await zip.file('content.xml')?.async('text');
+  if (!contentXml) throw new Error('No content.xml in ODT');
+  const doc = new DOMParser().parseFromString(contentXml, 'application/xml');
+  const paras = [...doc.querySelectorAll('text\:p, p')].map(p => '<p style="margin-bottom:.8em">' + escHtml(p.textContent) + '</p>').join('');
+  container.innerHTML = '<div style="max-width:680px;margin:0 auto">' + paras + '</div>';
+}
+
+async function renderPDF(blob, container) {
+  const buf = await blob.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({data: buf}).promise;
+  container.innerHTML = '';
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  for (let p = 1; p <= pdf.numPages; p++) {
+    const page = await pdf.getPage(p);
+    const viewport = page.getViewport({scale: 1.5});
+    const canvas = document.createElement('canvas');
+    canvas.width = viewport.width * dpr; canvas.height = viewport.height * dpr;
+    canvas.style.cssText = 'width:100%;max-width:680px;margin:0 auto 12px;display:block;border-radius:6px;';
+    container.appendChild(canvas);
+    const ctx = canvas.getContext('2d'); ctx.scale(dpr, dpr);
+    await page.render({canvasContext: ctx, viewport}).promise;
+  }
+}
+function updateEbookProgress() {
+  const c = document.getElementById('ebook-content');
+  const denom = c.scrollHeight - c.clientHeight;
+  const pct = denom > 0 ? (c.scrollTop/denom)*100 : 0;
+  document.getElementById('ebook-progress').style.width = pct + '%';
+  if (ebookCurrentFile) { DB.settings['ebookPos_'+ebookCurrentFile.id] = pct; save(); }
+}
+function ebookFontSize(d){ ebookFontSizeVal=Math.max(11,Math.min(30,ebookFontSizeVal+d)); document.getElementById('ebook-content').style.fontSize=ebookFontSizeVal+'px'; DB.settings.ebookFont=ebookFontSizeVal; save(); }
+function setTheme(t){ ebookTheme=t; const c=document.getElementById('ebook-content'); c.className='ebook-content'; if(t==='sepia')c.classList.add('sepia'); else if(t==='white')c.classList.add('white'); DB.settings.ebookTheme=t; save(); }
+
+// Smoother, calmer read-aloud
+let preferredVoice = null;
+let ttsCancelled = false;
+function pickVoice() {
+  const vs = speechSynthesis.getVoices();
+  if (!vs.length) return null;
+  const prefs = ['Samantha','Ava','Allison','Serena','Karen','Moira','Google US English','Microsoft Aria','Microsoft Jenny','Daniel','Fiona'];
+  for (const p of prefs) { const v = vs.find(v => v.name.includes(p)); if (v) return v; }
+  return vs.find(v => v.lang && v.lang.startsWith('en')) || vs[0];
+}
+if (window.speechSynthesis) {
+  speechSynthesis.onvoiceschanged = () => { preferredVoice = pickVoice(); };
+  preferredVoice = pickVoice();
+}
+function toggleEbookTTS() {
+  if (!window.speechSynthesis) { toast('Read aloud not supported here'); return; }
+  if (speechSynthesis.speaking) { ttsCancelled = true; speechSynthesis.cancel(); toast('Read aloud stopped'); return; }
+  const text = document.getElementById('ebook-content').innerText.slice(0, 8000);
+  if (!text.trim()) { toast('Nothing to read on this page'); return; }
+  // chunk into sentences for smoother, less breathless delivery
+  const chunks = text.match(/[^.!?]+[.!?]*\s*/g) || [text];
+  if (!preferredVoice) preferredVoice = pickVoice();
+  let i = 0;
+  const speakNext = () => {
+    if (i >= chunks.length || !speechSynthesis.speaking && i>0 && cancelled) return;
+    const u = new SpeechSynthesisUtterance(chunks[i].trim());
+    if (preferredVoice) u.voice = preferredVoice;
+    u.rate = 0.9; u.pitch = 1.02; u.volume = 1;
+    u.onend = () => { i++; if (i < chunks.length) speakNext(); };
+    speechSynthesis.speak(u);
+  };
+  let cancelled = false;
+  speakNext();
+  toast('Reading aloud…');
+}
+function addBookmark() {
+  if (!ebookCurrentFile) return;
+  const id = ebookCurrentFile.id, c = document.getElementById('ebook-content');
+  const denom = c.scrollHeight - c.clientHeight;
+  const pct = denom>0 ? Math.round((c.scrollTop/denom)*100) : 0;
+  if (!DB.bookmarks[id]) DB.bookmarks[id] = [];
+  DB.bookmarks[id].push({pos:c.scrollTop, label:'Bookmark at '+pct+'%'});
+  save(); toast('Bookmark saved at '+pct+'%');
+}
+function highlightSelection() {
+  const sel = window.getSelection();
+  if (!sel || !sel.toString().trim()) { toast('Select text first, then tap Highlight'); return; }
+  if (!ebookCurrentFile) return;
+  const id = ebookCurrentFile.id;
+  if (!DB.highlights[id]) DB.highlights[id] = [];
+  DB.highlights[id].push(sel.toString().trim().slice(0,300));
+  save(); toast('Highlight saved!');
+}
+function exportNotes() {
+  if (!ebookCurrentFile) return;
+  const id = ebookCurrentFile.id;
+  const bm = (DB.bookmarks[id]||[]).map(b=>b.label).join('\n') || '(none)';
+  const hl = (DB.highlights[id]||[]).join('\n\n') || '(none)';
+  const text = ebookCurrentFile.name + '\n\n=== BOOKMARKS ===\n' + bm + '\n\n=== HIGHLIGHTS ===\n' + hl;
+  const blob = new Blob([text], {type:'text/plain'});
+  const a = document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download = ebookCurrentFile.name.replace(/\.[^.]+$/,'') + '_notes.txt'; a.click();
+  toast('Notes exported');
+}
+function showEbookInfo(){ if(ebookCurrentFile) showFileInfo(ebookCurrentFile); }
+function toggleEbookMenu(){ const tb=document.getElementById('ebook-toolbar'); tb.style.display = tb.style.display==='none'?'flex':'none'; }
+function closeEbook(){ if(window.speechSynthesis) speechSynthesis.cancel(); revokeURLs(); showScreen(ebookPrevScreen); }
+function escHtml(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ===================== CONTEXT MENU (long-press) =====================
+let ctxTarget = null, ctxIsFolder = false;
+function attachLongPress(root) {
+  (root||document).querySelectorAll('[data-id]').forEach(el => {
+    let timer;
+    const start = e => { timer = setTimeout(() => openCtx(e.touches?e.touches[0]:e, el.dataset.id, false), 550); };
+    el.addEventListener('touchstart', start, {passive:true});
+    el.addEventListener('touchend', () => clearTimeout(timer));
+    el.addEventListener('touchmove', () => clearTimeout(timer));
+    el.addEventListener('contextmenu', e => { e.preventDefault(); openCtx(e, el.dataset.id, false); });
+  });
+  (root||document).querySelectorAll('[data-folder-id]').forEach(el => {
+    let timer;
+    const start = e => { timer = setTimeout(() => openCtx(e.touches?e.touches[0]:e, el.dataset.folderId, true), 550); };
+    el.addEventListener('touchstart', start, {passive:true});
+    el.addEventListener('touchend', () => clearTimeout(timer));
+    el.addEventListener('touchmove', () => clearTimeout(timer));
+    el.addEventListener('contextmenu', e => { e.preventDefault(); openCtx(e, el.dataset.folderId, true); });
+  });
+}
+function openCtx(e, id, isFolder) {
+  ctxIsFolder = isFolder;
+  ctxTarget = isFolder ? DB.folders.find(f=>f.id===id) : DB.files.find(f=>f.id===id);
+  if (!ctxTarget) return;
+  // Update favorites label based on current state
+  const favItem = document.getElementById('ctx-fav-item');
+  if (favItem) {
+    const isFav = DB.favorites.includes(ctxTarget.id);
+    favItem.innerHTML = '<span data-icon="star" data-sz="18"></span> ' + (isFav ? 'Remove from Favorites' : 'Add to Favorites');
+    renderIcons(favItem);
+  }
+  const menu = document.getElementById('context-menu');
+  menu.classList.add('active');
+  const x = Math.min((e.clientX||e.pageX||100), window.innerWidth-225);
+  const y = Math.min((e.clientY||e.pageY||100), window.innerHeight-360);
+  menu.style.left = Math.max(8,x)+'px'; menu.style.top = Math.max(8,y)+'px';
+  setTimeout(()=>document.addEventListener('click', dismissCtx, {once:true}), 10);
+}
+function dismissCtx(){ document.getElementById('context-menu').classList.remove('active'); }
+async function ctxAction(action) {
+  dismissCtx();
+  if (!ctxTarget) return;
+  if (action === 'rename') {
+    document.getElementById('rename-input').value = ctxTarget.name;
+    showModal('rename-modal');
+  } else if (action === 'duplicate') {
+    if (ctxIsFolder) { toast("Folders can't be duplicated"); return; }
+    const newId = Date.now()+'_'+Math.random().toString(36).slice(2);
+    const blob = await idbGet(ctxTarget.id);
+    if (blob) await idbPut(newId, blob);
+    const copy = {...ctxTarget, id:newId, name:uniqueName(ctxTarget.name.replace(/(\.[^.]+)$/,'_copy$1'), ctxTarget.section, ctxTarget.folderId), dateAdded:new Date().toISOString()};
+    DB.files.push(copy); save(); renderFileList(); refreshStorageBar(); toast('Duplicated!');
+  } else if (action === 'move') {
+    showMoveModal();
+  } else if (action === 'compress') {
+    toast('ZIP compression needs the native app build');
+  } else if (action === 'share') {
+    const blob = await idbGet(ctxTarget.id);
+    if (navigator.share && blob) {
+      try { await navigator.share({files:[new File([blob], ctxTarget.name, {type:blob.type})], title:ctxTarget.name}); }
+      catch(e){}
+    } else if (blob) {
+      const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=ctxTarget.name; a.click();
+      toast('Downloaded (sharing comes with the native app)');
+    } else toast('Nothing to share');
+  } else if (action === 'info') {
+    showFileInfo(ctxTarget);
+  } else if (action === 'favorite') {
+    if (!DB.favorites.includes(ctxTarget.id)) { DB.favorites.push(ctxTarget.id); toast('Added to favorites'); }
+    else { DB.favorites = DB.favorites.filter(i=>i!==ctxTarget.id); toast('Removed from favorites'); }
+    save();
+  } else if (action === 'delete') {
+    showConfirm('Delete "'+ctxTarget.name+'"?', 'Moved to Recently Deleted. Use Clear to permanently remove.', async () => {
+      if (ctxIsFolder) {
+        const kids = DB.files.filter(f=>f.folderId===ctxTarget.id);
+        kids.forEach(k => { DB.trash.push({...k, deletedAt: new Date().toISOString()}); });
+        DB.folders = DB.folders.filter(f=>f.id!==ctxTarget.id);
+        DB.files = DB.files.filter(f=>f.folderId!==ctxTarget.id);
+      } else {
+        DB.trash.push({...ctxTarget, deletedAt: new Date().toISOString()});
+        DB.files = DB.files.filter(f=>f.id!==ctxTarget.id);
+        DB.favorites = DB.favorites.filter(i=>i!==ctxTarget.id);
+      }
+      save(); renderFileList(); refreshBrowseCounts(); refreshStorageBar(); toast('Moved to Recently Deleted.');
+    });
+  }
+}
+function doRename() {
+  const name = document.getElementById('rename-input').value.trim();
+  if (!name) { toast('Enter a name'); return; }
+  const coll = ctxIsFolder ? DB.folders : DB.files;
+  const f = coll.find(x=>x.id===ctxTarget.id);
+  if (f) f.name = name;
+  save(); closeModal('rename-modal'); renderFileList(); refreshBrowseCounts(); toast('Renamed!');
+}
+function showFileInfo(f) {
+  const isFolder = !f.ext;
+  document.getElementById('info-content').innerHTML = `
+    <div class="info-row"><span class="info-label">Name</span><span class="info-value">${f.name}</span></div>
+    ${!isFolder?`<div class="info-row"><span class="info-label">Type</span><span class="info-value">${f.ext?.toUpperCase()}</span></div>`:''}
+    ${!isFolder?`<div class="info-row"><span class="info-label">Size on disk</span><span class="info-value">${formatBytes(f.size)}</span></div>`:''}
+    <div class="info-row"><span class="info-label">Section</span><span class="info-value">${((f.section||currentSection)+'').replace(/^./,c=>c.toUpperCase())}</span></div>
+    ${f.dateAdded?`<div class="info-row"><span class="info-label">Date Added</span><span class="info-value">${new Date(f.dateAdded).toLocaleString()}</span></div>`:''}
+    ${DB.favorites.includes(f.id)?'<div class="info-row"><span class="info-label">Favorited</span><span class="info-value">Yes</span></div>':''}
+    ${DB.subtitles[f.id]?'<div class="info-row"><span class="info-label">Subtitles</span><span class="info-value">Attached</span></div>':''}
+    ${DB.highlights[f.id]?.length?`<div class="info-row"><span class="info-label">Highlights</span><span class="info-value">${DB.highlights[f.id].length}</span></div>`:''}
+    ${DB.bookmarks[f.id]?.length?`<div class="info-row"><span class="info-label">Bookmarks</span><span class="info-value">${DB.bookmarks[f.id].length}</span></div>`:''}`;
+  showModal('info-modal');
+}
+
+// ===================== MOVE =====================
+function showMoveModal() {
+  if (!ctxTarget || ctxIsFolder) { toast('Only files can be moved'); return; }
+  const section = ctxTarget.section;
+  const folders = DB.folders.filter(f => f.section === section);
+  let html = `<div class="move-item bloom" onclick="doMove(null)"><span data-icon="folder" data-sz="22"></span><div style="font-size:14px;font-weight:600">${section.replace(/^./,c=>c.toUpperCase())} (root)</div></div>`;
+  folders.forEach(f => { html += `<div class="move-item bloom" onclick="doMove('${f.id}')"><span data-icon="folder" data-sz="22"></span><div style="font-size:14px;font-weight:600">${f.name}</div></div>`; });
+  document.getElementById('move-destinations').innerHTML = html;
+  renderIcons(document.getElementById('move-destinations'));
+  showModal('move-modal');
+}
+function doMove(folderId) {
+  const f = DB.files.find(x=>x.id===ctxTarget.id);
+  if (f) { f.folderId = folderId; save(); }
+  closeModal('move-modal'); renderFileList(); toast('Moved!');
+}
+
+// ===================== STORAGE =====================
+function refreshStorageBar() {
+  const total = DB.files.reduce((s,f)=>s+(f.size||0), 0);
+  const maxBytes = DB.isPro ? 1099511627776 : 274877906944;
+  const pct = Math.min(100, (total/maxBytes)*100);
+  document.getElementById('storage-fill').style.width = pct + '%';
+  const label = formatBytes(total) + ' / ' + (DB.isPro?'1 TB':'256 GB') + ' used';
+  document.getElementById('storage-label').textContent = label;
+  const se = document.getElementById('settings-storage-sub'); if (se) se.textContent = label;
+}
+
+// ===================== TRASH =====================
+async function clearTrash() {
+  if (!DB.trash.length) { toast('Nothing to clear'); return; }
+  showConfirm(
+    'Permanently delete ' + DB.trash.length + ' file' + (DB.trash.length !== 1 ? 's' : '') + '?',
+    'This cannot be undone.',
+    async () => {
+      for (const f of DB.trash) await idbDel(f.id);
+      DB.trash = [];
+      save();
+      refreshBrowseCounts();
+      refreshStorageBar();
+      toast('Permanently deleted.');
+    },
+    'Delete Forever'
+  );
+}
+
+function recoverFile(id) {
+  const idx = DB.trash.findIndex(f => f.id === id);
+  if (idx === -1) { toast('File not found'); return; }
+  const f = { ...DB.trash[idx] };
+  delete f.deletedAt;
+  DB.files.push(f);
+  DB.trash.splice(idx, 1);
+  save();
+  refreshBrowseCounts();
+  refreshStorageBar();
+  toast(f.name + ' recovered!');
+}
+
+// ===================== PRO =====================
+function showPro() {
+  const isPro = DB.isPro;
+  const annualPrice = '$99';
+  const monthlyPrice = '$12';
+  const content = document.getElementById('pro-modal-content');
+  if (isPro) {
+    content.innerHTML = `
+      <div class="pro-card" style="text-align:center">
+        <div style="font-size:40px;margin-bottom:8px"><span data-icon="star" data-sz="40"></span></div>
+        <div style="font-size:22px;font-weight:900;margin-bottom:4px">You're on Pro!</div>
+        <div style="font-size:14px;color:var(--text2);margin-bottom:20px">${DB.proAnnual ? 'Annual plan · $99/yr' : 'Monthly plan · $12/mo'}</div>
+        <div class="pro-features" style="margin-bottom:20px">
+          <div class="pro-feature"><span data-icon="check" data-sz="16"></span> 1 TB Storage</div>
+          <div class="pro-feature"><span data-icon="check" data-sz="16"></span> AI subtitles & lyrics</div>
+          <div class="pro-feature"><span data-icon="check" data-sz="16"></span> Priority support & early access</div>
+        </div>
+        <button class="btn-unsub" onclick="unsubscribePro()">Cancel Subscription</button>
+      </div>
+      <button class="btn-full secondary" onclick="closeModal('pro-modal')" style="margin-top:8px">Close</button>`;
+  } else {
+    content.innerHTML = `
+      <div class="plan-toggle">
+        <button class="plan-btn active" id="plan-monthly-btn" onclick="selectPlan('monthly')">Monthly</button>
+        <button class="plan-btn" id="plan-annual-btn" onclick="selectPlan('annual')">Annual <span class="plan-save">Save 31%</span></button>
+      </div>
+      <div class="pro-card">
+        <div class="pro-price" id="plan-price">${monthlyPrice}</div>
+        <div class="pro-period" id="plan-period">per month</div>
+        <div class="pro-features">
+          <div class="pro-feature"><span data-icon="check" data-sz="16"></span> 1 TB Storage (vs 256 GB free)</div>
+          <div class="pro-feature"><span data-icon="check" data-sz="16"></span> AI-generated subtitles for videos</div>
+          <div class="pro-feature"><span data-icon="check" data-sz="16"></span> AI-generated lyrics for audio</div>
+          <div class="pro-feature"><span data-icon="check" data-sz="16"></span> Priority support & early access</div>
+        </div>
+        <button class="btn-gold bloom" id="subscribe-btn" onclick="subscribePro(false)">Subscribe Monthly — ${monthlyPrice}/mo</button>
+      </div>
+      <button class="btn-full secondary" onclick="closeModal('pro-modal')">Maybe Later</button>`;
+  }
+  renderIcons(content);
+  showModal('pro-modal');
+}
+let _selectedPlan = 'monthly';
+function selectPlan(plan) {
+  _selectedPlan = plan;
+  const isAnnual = plan === 'annual';
+  document.getElementById('plan-monthly-btn').classList.toggle('active', !isAnnual);
+  document.getElementById('plan-annual-btn').classList.toggle('active', isAnnual);
+  document.getElementById('plan-price').textContent = isAnnual ? '$99' : '$12';
+  document.getElementById('plan-period').textContent = isAnnual ? 'per year' : 'per month';
+  const btn = document.getElementById('subscribe-btn');
+  btn.textContent = isAnnual ? 'Subscribe Annual — $99/yr' : 'Subscribe Monthly — $12/mo';
+  btn.onclick = () => subscribePro(isAnnual);
+}
+function autoGenSubtitles() {
+  if (!DB.isPro) { showPro(); return; }
+  toast('Attach an .srt subtitle file via Upload to enable subtitles');
+}
+let proAnnual = false;
+function subscribePro(annual) {
+  proAnnual = !!annual;
+  DB.isPro = true;
+  DB.proAnnual = proAnnual;
+  localStorage.setItem('plex_pro_annual', proAnnual);
+  save();
+  closeModal('pro-modal');
+  refreshStorageBar();
+  updateProUI();
+  toast('Welcome to PLEX Pro! All features unlocked.');
+}
+function unsubscribePro() {
+  if (!confirm('Cancel your Pro subscription? You will lose access to Pro features.')) return;
+  DB.isPro = false;
+  DB.proAnnual = false;
+  localStorage.removeItem('plex_pro_annual');
+  save();
+  closeModal('pro-modal');
+  refreshStorageBar();
+  updateProUI();
+  toast('Subscription cancelled.');
+}
+function updateProUI() {
+  const isPro = DB.isPro;
+  // settings row
+  const sub = document.getElementById('pro-settings-sub');
+  if (sub) sub.textContent = isPro ? (DB.proAnnual ? 'Active — Annual plan' : 'Active — Monthly plan') : 'Upgrade for $12/mo';
+  // pro badge: hide when pro (already have it), show as manage button
+  const badge = document.querySelector('.pro-badge');
+  if (badge) {
+    badge.innerHTML = isPro
+      ? '<span data-icon="star" data-sz="14"></span> PRO'
+      : '<span data-icon="star" data-sz="14"></span> PRO';
+    renderIcons(badge);
+  }
+  // autosub chip star icon
+  const autosubIcon = document.getElementById('autosub-pro-icon');
+  if (autosubIcon) { autosubIcon.style.display = isPro ? 'none' : ''; }
+  // lyrics pro line
+  const lyricsLine = document.getElementById('lyrics-pro-line');
+  if (lyricsLine) lyricsLine.style.display = isPro ? 'none' : '';
+}
+
+// ===================== SETTINGS =====================
+function toggleSettingToggle(id) {
+  const on = !document.getElementById(id).classList.contains('on');
+  if (id==='autoplay-setting') autoplayOn = on;
+  if (id==='loop-setting') loopOn = on;
+  if (id==='shuffle-setting') shuffleOn = on;
+  DB.settings[id] = on; save(); syncChips();
+}
+function clearAll() {
+  showConfirm('Clear all data?', 'Every file and folder in PLEX will be permanently deleted.', async () => {
+    for (const f of DB.files) await idbDel(f.id);
+    DB.files=[]; DB.folders=[]; DB.subtitles={}; DB.bookmarks={}; DB.highlights={}; DB.favorites=[]; DB.trash=[];
+    save(); refreshBrowseCounts(); refreshStorageBar(); renderFileList(); toast('All data cleared.');
+  }, 'Clear All');
+}
+function showConfirm(title, msg, onYes, yesLabel) {
+  document.getElementById('confirm-modal-title').textContent = title;
+  document.getElementById('confirm-modal-msg').textContent = msg;
+  const btn = document.getElementById('confirm-modal-yes');
+  btn.textContent = yesLabel || 'Delete';
+  btn.onclick = () => { closeModal('confirm-modal'); onYes(); };
+  showModal('confirm-modal');
+}
+
+// ===================== INIT =====================
+(async function init() {
+  renderIcons(document);
+  await openDB();
+  // restore settings
+  autoplayOn = !!DB.settings['autoplay-setting'];
+  loopOn = !!DB.settings['loop-setting'];
+  shuffleOn = !!DB.settings['shuffle-setting'];
+  if (DB.settings.ebookFont) ebookFontSizeVal = DB.settings.ebookFont;
+  if (DB.settings.ebookTheme) ebookTheme = DB.settings.ebookTheme;
+  syncChips();
+  refreshBrowseCounts();
+  refreshStorageBar();
+  updateProUI();
+})();
+</script>
+
+<!-- LOADING OVERLAY -->
+<div id="loading-overlay" class="loading-overlay">
+  <div class="loader-dots"><span></span><span></span><span></span></div>
+  <div class="loader-label" id="loader-label">Loading</div>
+</div>
+
+<!-- UNSUPPORTED FILES -->
+<div id="unsupported-screen" class="screen">
+  <div class="nav">
+    <button class="nav-back bloom" onclick="showScreen('settings-screen')"><span data-icon="chevron-left" data-sz="20"></span></button>
+    <span class="nav-title">Unsupported Formats</span>
+  </div>
+  <div style="padding:16px 20px;overflow-y:auto;flex:1;padding-bottom:40px">
+    <p style="font-size:13px;color:var(--text2);margin-bottom:20px;line-height:1.6">These formats are stored and downloadable in PLEX but cannot be previewed in the browser.</p>
+    <div class="settings-label">Video (needs native codecs)</div>
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:16px;font-size:12px;line-height:2;color:var(--text2)">AVI &middot; WMV &middot; FLV &middot; RM &middot; RMVB &middot; ASF &middot; VOB &middot; DV &middot; MXF &middot; DRC &middot; ROQ &middot; YUV &middot; AMV &middot; NSV &middot; QT &middot; BIK &middot; HEVC &middot; H264 &middot; H265</div>
+    <div class="settings-label">Camera RAW Images</div>
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:16px;font-size:12px;line-height:2;color:var(--text2)">RAW &middot; DNG &middot; CR2 &middot; CR3 &middot; NEF &middot; ARW &middot; ORF &middot; RW2 &middot; RAF &middot; SR2 &middot; PEF &middot; X3F &middot; JXR &middot; JP2 &middot; J2K &middot; PSD &middot; AI &middot; EPS</div>
+    <div class="settings-label">Audio (non-standard codecs)</div>
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:16px;font-size:12px;line-height:2;color:var(--text2)">WMA &middot; AMR &middot; AU &middot; RA &middot; CAF &middot; AC3 &middot; DTS &middot; PCM &middot; TTA &middot; VOC &middot; GSM &middot; SPX</div>
+    <div class="settings-label">DAW Project Files</div>
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:16px;font-size:12px;line-height:2;color:var(--text2)">ALS &middot; FLP &middot; LOGICX &middot; PTX &middot; BAND &middot; CPR &middot; RPP</div>
+    <div class="settings-label">Comics (RAR/7z/TAR-based)</div>
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:16px;font-size:12px;line-height:2;color:var(--text2)">CBR &middot; CB7 &middot; CBT
+      <div style="margin-top:6px;font-size:11px">Convert to CBZ using The Unarchiver (free, Mac App Store) &mdash; CBZ opens natively.</div></div>
+    <div class="settings-label">eBooks (proprietary)</div>
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:16px;font-size:12px;line-height:2;color:var(--text2)">MOBI &middot; AZW &middot; AZW3 &middot; KFX &middot; DJVU &middot; LIT &middot; PDB &middot; PRC &middot; IBOOKS &middot; OPF &middot; OXPS &middot; XPS &middot; TCR &middot; TR2 &middot; RB &middot; LRF &middot; PML &middot; ZBOOK &middot; ZTXT &middot; EBK</div>
+  </div>
+</div>
+</body>
+</html>
