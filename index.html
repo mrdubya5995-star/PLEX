@@ -5,10 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="PLEX">
+<meta name="mobile-web-app-capable" content="yes">
 <title>PLEX</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgcng9IjIyIiBmaWxsPSIjN2MzYWVkIi8+PHBvbHlnb24gcG9pbnRzPSIzNSwyMiAzNSw3OCA3OCw1MCIgZmlsbD0id2hpdGUiLz48L3N2Zz4=">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 
 <style>
   :root {
@@ -128,20 +132,39 @@
     width: 60px; height: 60px; border-radius: 16px; display: flex; align-items: center; justify-content: center;
   }
   .section-emblem .ic { color: #fff; stroke: #fff; }
-  .section-card.media .section-emblem { background: #374151; }
-  .section-card.audio .section-emblem { background: #374151; }
-  .section-card.ebook .section-emblem { background: #374151; }
-  .section-card.favorites .section-emblem { background: #374151; }
+  .section-card.media .section-emblem { background: #1e40af; }
+  .section-card.audio .section-emblem { background: #065f46; }
+  .section-card.ebook .section-emblem { background: #92400e; }
+  .section-card.favorites .section-emblem { background: #7c3aed; }
+  .section-card.media { border-color: rgba(30,64,175,0.35); }
+  .section-card.audio { border-color: rgba(6,95,70,0.35); }
+  .section-card.ebook { border-color: rgba(146,64,14,0.35); }
+  .section-card.favorites { border-color: rgba(124,58,237,0.35); }
   .section-name { font-size: 17px; }
   .section-count { font-size: 12px; color: var(--text2); }
   .recent-head { font-size: 12px; color: var(--text2); margin-bottom: 10px; letter-spacing: 1px; text-transform: uppercase; }
 
   /* FILE LIST */
   .files-content { flex: 1; overflow-y: auto; padding: 10px; padding-bottom: 100px; }
-  .breadcrumb { font-size: 12px; color: var(--text2); padding: 6px 16px 0; }
+  .breadcrumb { font-size: 13px; color: var(--text2); padding: 8px 16px 2px; display: flex; align-items: center; flex-wrap: wrap; gap: 2px; min-height: 28px; }
+  .bread-seg { color: var(--accent); cursor: pointer; font-weight: 700; padding: 1px 2px; border-radius: 4px; }
+  .bread-seg:active { opacity: 0.7; }
+  .bread-current { color: var(--text); cursor: default; font-weight: 700; }
+  .bread-sep { color: var(--text2); margin: 0 2px; font-size: 12px; }
+  .list-section-head { font-size: 11px; font-weight: 800; color: var(--text2); letter-spacing: 1.5px; text-transform: uppercase; padding: 14px 4px 6px; }
+  .sort-opt { display: flex; align-items: center; justify-content: space-between; padding: 15px 4px; border-bottom: 1px solid var(--border); cursor: pointer; font-size: 15px; font-weight: 600; font-family: 'Helvetica Neue', Arial, sans-serif; }
+  .sort-opt:last-child { border-bottom: none; }
+  .sort-opt:active { background: var(--bg3); }
+  .sort-opt.sort-active { color: var(--accent); }
+  .swipe-row { position: relative; overflow: hidden; border-radius: 14px; margin-bottom: 8px; background: var(--card); -webkit-transform: translateZ(0); transform: translateZ(0); }
+  .swipe-del-btn { position: absolute; right: 0; top: 0; bottom: 0; width: 72px; background: #e53e3e; border: none; color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; border-radius: 0 14px 14px 0; pointer-events: none; visibility: hidden; }
+  .swipe-del-btn:active { background: #c53030; }
   .file-item {
+    position: relative;
     background: var(--card); border: 1px solid var(--border); border-radius: 14px;
-    padding: 11px 14px; margin-bottom: 8px; display: flex; align-items: center; gap: 12px; cursor: pointer;
+    padding: 11px 14px; margin-bottom: 0; display: flex; align-items: center; gap: 12px; cursor: pointer;
+    -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+    will-change: transform;
   }
   .file-thumb {
     width: 46px; height: 46px; border-radius: 11px; background: var(--bg3);
@@ -229,9 +252,9 @@
   .modal-close { float: right; background: none; border: none; color: var(--text2); cursor: pointer; display: flex; }
 
   /* CONTEXT MENU */
-  .context-menu { display: none; position: fixed; z-index: 300; background: var(--bg2); border: 1px solid var(--border); border-radius: 16px; min-width: 210px; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,.5); }
+  .context-menu { display: none; position: fixed; z-index: 300; background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; width: 192px; max-height: 126px; overflow-y: auto; -webkit-overflow-scrolling: touch; box-shadow: 0 8px 28px rgba(0,0,0,.6); }
   .context-menu.active { display: block; }
-  .ctx-item { padding: 13px 16px; font-size: 15px; cursor: pointer; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--border); font-family:'Helvetica Neue', Arial, sans-serif; }
+  .ctx-item { padding: 9px 13px; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 9px; border-bottom: 1px solid var(--border); font-family:'Helvetica Neue', Arial, sans-serif; white-space: nowrap; }
   .ctx-item:last-child { border-bottom: none; }
   .ctx-item .ic { color: var(--accent); }
   .ctx-item.danger { color: var(--red); }
@@ -305,6 +328,35 @@
   .search-bar .ic { color: var(--text2); }
   .search-bar input { flex: 1; background: none; border: none; outline: none; color: var(--text); font-size: 15px; font-family:'Helvetica Neue', Arial, sans-serif; }
 
+  .sel-toggle-btn.sel-active { background: var(--purple); border-color: var(--purple); }
+  .sel-toggle-btn.sel-active .ic { color: #fff; stroke: #fff; }
+  .file-item.selected { background: rgba(124,58,237,0.22); border-color: var(--purple); box-shadow: inset 3px 0 0 var(--purple); }
+  .sel-check { width:22px; height:22px; border-radius:6px; border:2px solid var(--border); background:var(--bg3); display:none; align-items:center; justify-content:center; flex-shrink:0; }
+  .sel-check svg { display:none; }
+  .file-item.selected .sel-check { background:var(--purple); border-color:var(--purple); }
+  .file-item.selected .sel-check svg { display:block; }
+  .select-mode .file-item .sel-check { display:flex; }
+  .select-bar { display:none; position:fixed; bottom:0; left:0; right:0; z-index:150; background:var(--bg2); border-top:1px solid var(--border); padding:14px 18px; flex-direction:row; align-items:center; justify-content:space-between; }
+  .select-bar.active { display:flex; }
+  .select-count-label { font-size:13px; font-weight:700; color:var(--text2); }
+  .select-bar-actions { display:flex; gap:8px; }
+  .sel-action-btn { padding:8px 16px; border-radius:10px; border:1px solid var(--border); background:var(--bg3); color:var(--text); font-size:13px; font-weight:700; cursor:pointer; }
+  .sel-action-btn.danger { color:var(--red); border-color:var(--red); }
+  .upload-tray-fab { position:fixed; top:18px; left:50%; transform:translateX(-50%); z-index:400; background:var(--purple); border-radius:20px; padding:6px 14px; display:flex; align-items:center; gap:5px; cursor:pointer; box-shadow:0 2px 12px rgba(124,58,237,.4); display:none; white-space:nowrap; }
+  .upload-tray-badge { background:white; color:var(--purple); border-radius:10px; font-size:10px; font-weight:900; padding:1px 6px; }
+  .upload-tray-panel { position:fixed; top:0; left:0; right:0; z-index:500; background:var(--bg2); border-bottom:1px solid var(--border); max-height:70vh; overflow-y:auto; transform:translateY(-100%); transition:transform .3s ease; box-shadow:0 4px 20px rgba(0,0,0,.4); display:none; }
+  .upload-tray-panel.open { transform:translateY(0); }
+  .upload-tray-head { display:flex; justify-content:space-between; align-items:center; padding:16px 18px 10px; border-bottom:1px solid var(--border); }
+  .upload-entry { padding:12px 18px; border-bottom:1px solid var(--border); }
+  .upload-entry-name { font-size:13px; font-weight:600; margin-bottom:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .upload-entry-meta { font-size:11px; color:var(--text2); margin-bottom:6px; }
+  .upload-pb-track { height:4px; background:var(--bg3); border-radius:2px; overflow:hidden; }
+  .upload-pb-fill { height:100%; background:var(--purple); border-radius:2px; transition:width .15s; }
+  .img-swipe-wrap { position:relative; width:100%; }
+  .img-swipe-arrow { position:absolute; top:50%; transform:translateY(-50%); background:rgba(0,0,0,.55); border:none; border-radius:50%; width:44px; height:44px; display:flex; align-items:center; justify-content:center; cursor:pointer; z-index:10; color:white; }
+  .img-swipe-arrow.left { left:10px; }
+  .img-swipe-arrow.right { right:10px; }
+  .img-swipe-counter { text-align:center; font-size:12px; color:var(--text2); padding:8px 0; }
   @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
 
   /* LOADING OVERLAY */
@@ -318,13 +370,33 @@
   @keyframes dotPulse { 0%,80%,100%{transform:scale(0.5);opacity:0.25;} 40%{transform:scale(1);opacity:1;} }
   /* Pro chip icon */
   .pro-chip-icon { font-size:11px; margin-left:3px; color:var(--gold); }
+
+  /* AUTH SCREENS */
+  .auth-screen { display:none; position:fixed; inset:0; z-index:8000; background:var(--bg); flex-direction:column; align-items:center; justify-content:center; padding:24px; }
+  .auth-screen.active { display:flex; }
+  .auth-box { width:100%; max-width:380px; display:flex; flex-direction:column; gap:16px; }
+  .auth-logo { font-size:36px; font-weight:900; letter-spacing:6px; color:var(--text); text-align:center; margin-bottom:4px; }
+  .auth-title { font-size:22px; font-weight:900; text-align:center; color:var(--text); }
+  .auth-sub { font-size:13px; color:var(--text2); text-align:center; line-height:1.6; }
+  .auth-input { width:100%; padding:14px; background:var(--bg3); border:1px solid var(--border); border-radius:12px; color:var(--text); font-size:16px; font-family:inherit; font-weight:600; outline:none; box-sizing:border-box; }
+  .auth-input:focus { border-color:var(--purple); }
+  .auth-btn { width:100%; padding:15px; background:var(--purple); color:#fff; border:none; border-radius:12px; font-size:16px; font-weight:900; cursor:pointer; font-family:inherit; letter-spacing:.5px; }
+  .auth-btn:active { opacity:.85; }
+  .auth-link { font-size:13px; color:var(--text2); text-align:center; cursor:pointer; line-height:1.8; }
+  .auth-link b { color:var(--accent); font-weight:700; }
+  .auth-error { font-size:13px; color:var(--red); text-align:center; min-height:18px; }
+  .code-inputs { display:flex; gap:10px; justify-content:center; }
+  .code-input { width:46px; height:56px; background:var(--bg3); border:1px solid var(--border); border-radius:10px; color:var(--text); font-size:22px; font-weight:900; text-align:center; font-family:inherit; outline:none; }
+  .code-input:focus { border-color:var(--purple); }
+  /* AUTH WALL (overlay on browse/files) */
+  .auth-wall { display:none; position:fixed; inset:0; z-index:7000; background:rgba(13,13,13,.96); backdrop-filter:blur(6px); flex-direction:column; align-items:center; justify-content:center; padding:32px; text-align:center; gap:16px; }
+  .auth-wall.active { display:flex; }
 </style>
 </head>
 <body>
 
 <!-- HOME -->
 <div id="home" class="screen active">
-  <div class="pro-badge bloom" onclick="showPro()"><span data-icon="star" data-sz="14"></span> PRO</div>
   <div class="home-logo">
     <div class="plex-icon"><span data-icon="play" data-sz="52" data-fill="1"></span></div>
     <div class="plex-title">PLEX</div>
@@ -334,10 +406,45 @@
     <button class="btn-primary bloom" onclick="showUploadModal()"><span data-icon="upload" data-sz="20"></span> Upload</button>
     <button class="btn-secondary bloom" onclick="showScreen('browse')"><span data-icon="grid" data-sz="18"></span> Browse Library</button>
     <button class="btn-secondary bloom" onclick="openSettings()" style="font-size:14px;padding:12px;"><span data-icon="settings" data-sz="17"></span> Settings</button>
+    <button id="account-home-btn" class="btn-secondary bloom" onclick="openAccount()" style="font-size:14px;padding:12px;"><span data-icon="user" data-sz="17"></span> Account</button>
+    <!-- hidden in HTML via init -->
   </div>
   <div class="storage-bar-wrap">
     <div class="storage-label" id="storage-label">0 B / 256 GB used</div>
     <div class="storage-bar"><div class="storage-fill" id="storage-fill"></div></div>
+  </div>
+</div>
+
+<!-- ACCOUNT -->
+<div id="account-screen" class="screen">
+  <div class="nav">
+    <button class="nav-back bloom" onclick="goBackFromAccount()"><span data-icon="chevron-left" data-sz="22"></span></button>
+    <span class="nav-title">Account</span>
+  </div>
+  <div class="settings-section">
+    <div id="pro-account-row" class="settings-row bloom" onclick="requireAuth(showProModal)" style="cursor:pointer;">
+      <div class="settings-row-left">
+        <span data-icon="star" data-sz="22" style="color:var(--gold)"></span>
+        <div>
+          <div class="settings-row-text" style="color:var(--gold);font-weight:700;">PLEX Pro</div>
+          <div class="settings-row-sub" id="pro-account-sub">Upgrade for $12/mo</div>
+        </div>
+      </div>
+      <span data-icon="chevron-right" data-sz="18" style="color:var(--gold)"></span>
+    </div>
+    <div class="settings-row bloom" id="auth-account-row" onclick="handleAccountAuthBtn()" style="cursor:pointer;">
+      <div class="settings-row-left">
+        <span data-icon="user" data-sz="22"></span>
+        <div>
+          <div class="settings-row-text" id="account-auth-label">Log In / Sign Up</div>
+          <div class="settings-row-sub" id="account-email-sub">Create a free account</div>
+        </div>
+      </div>
+      <span data-icon="chevron-right" data-sz="18"></span>
+    </div>
+    <div id="account-browser-note" style="display:none;padding:12px 16px;font-size:12px;color:var(--text2);line-height:1.6;border-top:1px solid var(--border)">
+      Files are stored locally in your browser. Sign up &amp; cross-device sync available in the PLEX desktop app.
+    </div>
   </div>
 </div>
 
@@ -351,7 +458,12 @@
       <button class="nav-btn bloom" onclick="openSettings()"><span data-icon="settings" data-sz="16"></span></button>
     </div>
   </div>
-  <div class="section-grid">
+  <div class="search-bar" style="margin-top:4px">
+    <span data-icon="search" data-sz="16"></span>
+    <input type="text" placeholder="Search all files…" id="browse-search" oninput="filterBrowse()">
+  </div>
+  <div id="browse-search-results" style="display:none;padding:0 18px 20px;"></div>
+  <div id="browse-sections" class="section-grid">
     <div class="section-card media bloom" onclick="openSection('media')">
       <div class="section-emblem"><span data-icon="film" data-sz="30"></span></div>
       <div class="section-name">Media</div>
@@ -373,13 +485,20 @@
       <div class="section-count" id="favorites-count">0 files</div>
     </div>
   </div>
-  <div style="padding: 0 18px 20px;">
-    <div class="recent-head">Recent</div>
+  <div id="browse-content" style="padding: 0 18px 20px;">
+    <div class="recent-head">Recently Uploaded</div>
     <div id="recent-list"></div>
+    <div id="viewed-section" style="display:none;margin-top:20px">
+      <div class="recent-head">Recently Viewed</div>
+      <div id="viewed-list"></div>
+    </div>
     <div id="trash-section" style="display:none;margin-top:20px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
         <div class="recent-head" style="margin-bottom:0">Recently Deleted</div>
-        <button onclick="clearTrash()" style="background:none;border:none;color:var(--red);font-size:12px;font-weight:800;cursor:pointer;letter-spacing:1px;text-transform:uppercase;padding:4px 8px;border-radius:6px;border:1px solid var(--red)">Clear</button>
+        <div style="display:flex;gap:8px">
+          <button onclick="clearTrash()" style="background:none;border:none;color:var(--red);font-size:12px;font-weight:800;cursor:pointer;letter-spacing:1px;text-transform:uppercase;padding:4px 8px;border-radius:6px;border:1px solid var(--red)">Clear</button>
+          <button onclick="restoreAllTrash()" style="background:none;border:none;color:var(--green);font-size:12px;font-weight:800;cursor:pointer;letter-spacing:1px;text-transform:uppercase;padding:4px 8px;border-radius:6px;border:1px solid var(--green)">Restore All</button>
+        </div>
       </div>
       <div id="trash-list"></div>
     </div>
@@ -395,6 +514,7 @@
       <button class="nav-btn bloom" id="create-folder-btn" onclick="showCreateFolder()"><span data-icon="folder-plus" data-sz="16"></span></button>
       <button class="nav-btn bloom" onclick="showUploadModal()"><span data-icon="upload" data-sz="16"></span></button>
       <button class="nav-btn bloom" onclick="toggleSort()"><span data-icon="sort" data-sz="16"></span></button>
+      <button class="nav-btn bloom sel-toggle-btn" id="select-btn" onclick="toggleSelectMode()"><span data-icon="check-square" data-sz="16"></span></button>
     </div>
   </div>
   <div class="search-bar">
@@ -403,6 +523,15 @@
   </div>
   <div class="breadcrumb" id="breadcrumb-path"></div>
   <div class="files-content" id="files-list"></div>
+  <div id="select-bar" class="select-bar">
+    <span id="select-count" class="select-count-label">0 selected</span>
+    <div class="select-bar-actions">
+      <button class="sel-action-btn bloom" onclick="selectAllFiles()">All</button>
+      <button class="sel-action-btn bloom" onclick="bulkNewFolder()">Folder</button>
+      <button class="sel-action-btn bloom" onclick="bulkMove()">Move</button>
+      <button class="sel-action-btn danger bloom" onclick="bulkDelete()">Delete</button>
+    </div>
+  </div>
 </div>
 
 <!-- MEDIA PLAYER -->
@@ -436,7 +565,7 @@
     <div class="toggle-chips">
       <div class="chip bloom" id="media-autoplay-chip" onclick="toggleAutoplay()"><span data-icon="skip-forward" data-sz="16"></span> Autoplay next</div>
       <div class="chip bloom" id="media-loop-chip" onclick="toggleLoop()"><span data-icon="repeat" data-sz="16"></span> Loop</div>
-      <div class="chip bloom" id="autosub-chip" onclick="autoGenSubtitles()"><span data-icon="subtitles" data-sz="16"></span> Autogenerate Subtitles <span id="autosub-pro-icon" data-icon="star" data-sz="13"></span></div>
+      <div class="chip bloom" id="autosub-chip" onclick="autoGenSubtitles()"><span data-icon="subtitles" data-sz="16"></span> ✦ Transcribe Subtitles <span id="autosub-pro-icon" data-icon="star" data-sz="13"></span></div>
       <div class="chip bloom" onclick="toggleFullscreen()"><span data-icon="maximize" data-sz="16"></span> Fullscreen</div>
     </div>
     <div class="vol-row">
@@ -482,9 +611,9 @@
     </div>
   </div>
   <div class="lyrics-panel" id="lyrics-panel">
-    <div id="lyrics-text">No lyrics loaded.</div>
-    <div class="pro-line" id="lyrics-pro-line">
-      <span data-icon="star" data-sz="12"></span> PRO: AI-generated lyrics — <span onclick="showPro()" style="text-decoration:underline;cursor:pointer;">Upgrade</span>
+    <div id="lyrics-text" style="white-space:pre-line;text-align:left;line-height:1.8">No lyrics loaded.</div>
+    <div id="lyrics-ai-btn" style="margin-top:10px">
+      <button onclick="getAILyrics()" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text2);font-size:11px;font-weight:800;padding:6px 14px;cursor:pointer;letter-spacing:.5px">✦ Get Lyrics with AI</button>
     </div>
   </div>
   <div id="music-queue" style="padding: 16px 0 80px;"></div>
@@ -509,6 +638,7 @@
     <button class="ebook-btn bloom" onclick="toggleEbookTTS()"><span data-icon="volume" data-sz="14"></span> Read Aloud</button>
     <button class="ebook-btn bloom" onclick="addBookmark()"><span data-icon="bookmark" data-sz="14"></span> Bookmark</button>
     <button class="ebook-btn bloom" onclick="showEbookInfo()"><span data-icon="info" data-sz="14"></span> Info</button>
+    <button class="ebook-btn bloom" onclick="getEbookSummary()" id="ebook-ai-btn">✦ AI Summary</button>
   </div>
   <div class="ebook-content" id="ebook-content">
     <p style="color: var(--text2); text-align: center; margin-top: 40px;">Open an eBook to start reading.</p>
@@ -521,14 +651,14 @@
     <button class="nav-back bloom" onclick="goBackFromSettings()"><span data-icon="chevron-left" data-sz="20"></span></button>
     <span class="nav-title">Settings</span>
   </div>
-  <div class="settings-section">
+  <div class="settings-section" id="pro-settings-section">
     <div class="settings-label">Account</div>
-    <div class="settings-row bloom" onclick="showPro()">
+    <div id="pro-settings-row" class="settings-row bloom" onclick="requireAuth(showProModal)">
       <div class="settings-row-left"><span data-icon="star" data-sz="22"></span><div><div class="settings-row-text">PLEX Pro</div><div class="settings-row-sub" id="pro-settings-sub">Upgrade for $12/mo</div></div></div>
       <span data-icon="chevron-right" data-sz="18" style="color:var(--gold)"></span>
     </div>
     <div class="settings-row">
-      <div class="settings-row-left"><span data-icon="database" data-sz="22"></span><div><div class="settings-row-text">Storage</div><div class="settings-row-sub" id="settings-storage-sub">0 B of 256 GB used</div></div></div>
+      <div class="settings-row-left"><span data-icon="database" data-sz="22"></span><div><div class="settings-row-text">Storage</div><div class="settings-row-sub" id="settings-storage-sub">0 B stored</div></div></div>
     </div>
   </div>
   <div class="settings-section">
@@ -551,6 +681,22 @@
     <div class="settings-row bloom" onclick="showScreen('unsupported-screen')">
       <div class="settings-row-left"><span data-icon="file" data-sz="22"></span><div><div class="settings-row-text">Unsupported Formats</div><div class="settings-row-sub">What PLEX cannot preview</div></div></div>
       <span data-icon="chevron-right" data-sz="18"></span>
+    </div>
+  </div>
+  <div class="settings-section" id="ai-settings-section">
+    <div class="settings-label">AI Features</div>
+    <div class="settings-row">
+      <div class="settings-row-left"><span data-icon="star" data-sz="22"></span><div>
+        <div class="settings-row-text">AI Features</div>
+        <div class="settings-row-sub" id="ai-status-sub">Included with Pro</div>
+      </div></div>
+      <span id="ai-status-badge" style="font-size:11px;font-weight:900;color:var(--green);letter-spacing:.5px"></span>
+    </div>
+    <div id="ai-key-override" style="display:none;flex-direction:column;gap:8px;margin-top:4px">
+      <p style="font-size:11px;color:var(--text2);padding:0 4px;line-height:1.6">Backend not connected yet — enter your own keys temporarily.</p>
+      <input type="password" id="claude-key-input" class="input-field" placeholder="Anthropic key (sk-ant-...)" style="margin:0;font-size:13px;padding:10px">
+      <input type="password" id="openai-key-input" class="input-field" placeholder="OpenAI key (sk-...)" style="margin:0;font-size:13px;padding:10px">
+      <button class="btn-full" style="padding:10px" onclick="saveAIKeys()">Save Keys</button>
     </div>
   </div>
   <div class="settings-section">
@@ -646,6 +792,17 @@
   </div>
 </div>
 
+<!-- SORT -->
+<div class="modal-overlay" id="sort-modal">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <button class="modal-close" onclick="closeModal('sort-modal')"><span data-icon="x" data-sz="22"></span></button>
+    <div class="modal-title"><span data-icon="sort" data-sz="20"></span> Sort By</div>
+    <div id="sort-options-list"></div>
+    <button class="btn-full secondary" style="margin-top:8px" onclick="closeModal('sort-modal')">Cancel</button>
+  </div>
+</div>
+
 <!-- CONFIRM -->
 <div class="modal-overlay" id="confirm-modal">
   <div class="modal-sheet">
@@ -663,16 +820,49 @@
   <div class="ctx-item" onclick="ctxAction('duplicate')"><span data-icon="copy" data-sz="18"></span> Duplicate</div>
   <div class="ctx-item" onclick="ctxAction('move')"><span data-icon="move" data-sz="18"></span> Move</div>
   <div class="ctx-item" onclick="ctxAction('compress')"><span data-icon="archive" data-sz="18"></span> Compress to ZIP</div>
+  <div class="ctx-item" onclick="ctxAction('save')"><span data-icon="download" data-sz="18"></span> Save to Device</div>
   <div class="ctx-item" onclick="ctxAction('share')"><span data-icon="share" data-sz="18"></span> Share</div>
   <div class="ctx-item" onclick="ctxAction('info')"><span data-icon="info" data-sz="18"></span> Get Info</div>
+  <div class="ctx-item" id="ctx-newfolder-item" onclick="ctxAction('newfolder')"><span data-icon="folder-plus" data-sz="18"></span> New Folder with Item</div>
   <div class="ctx-item" id="ctx-fav-item" onclick="ctxAction('favorite')"><span data-icon="star" data-sz="18"></span> Add to Favorites</div>
+  <div class="ctx-item" id="ctx-tag-item" onclick="ctxAction('tag')"><span data-icon="bookmark" data-sz="18"></span> Tags</div>
   <div class="ctx-item danger" onclick="ctxAction('delete')"><span data-icon="trash" data-sz="18"></span> Delete</div>
 </div>
 
+<div class="modal-overlay" id="tag-modal">
+  <div class="modal-card" style="background:var(--bg2);border-radius:22px 22px 0 0;padding:20px;width:100%;max-width:520px;max-height:90vh;overflow-y:auto;animation:slideUp .28s ease;padding-bottom:max(20px,env(safe-area-inset-bottom))">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Tags</div>
+    <div id="tag-picker-list" style="margin-bottom:16px"></div>
+    <button class="btn-full secondary" onclick="closeModal('tag-modal')">Done</button>
+  </div>
+</div>
+<div class="upload-tray-fab" id="upload-tray-fab" onclick="toggleUploadTray()">
+  <span data-icon="download" data-sz="16"></span>
+  <span class="upload-tray-badge" id="upload-tray-badge">0</span>
+</div>
+<div class="upload-tray-panel" id="upload-tray-panel" style="display:none">
+  <div class="upload-tray-head">
+    <span style="font-weight:700;font-size:15px">Uploading</span>
+    <span onclick="toggleUploadTray()" style="cursor:pointer;color:var(--text2);font-size:20px;line-height:1">×</span>
+  </div>
+  <div id="upload-tray-list"></div>
+</div>
 <div class="toast" id="toast"></div>
 <audio id="main-audio" style="display:none"></audio>
 
 <script>
+const IS_ELECTRON = navigator.userAgent.toLowerCase().includes('electron');
+// Formats HTML browsers cannot decode natively — preemptively show error to avoid silent audio
+const HTML_UNSUPPORTED_VIDEO = new Set([
+  'mkv','avi','wmv','flv','mov','rm','rmvb','divx','xvid','f4v','vob',
+  'asf','dv','mxf','drc','roq','yuv','amv','nsv','qt','bik',
+  'hevc','h264','h265','mp2','mpe','mpv','m2v','mts','m2ts','ts','mpeg','mpg','3g2'
+]);
+// Formats Electron/DMG still cannot decode (proprietary or obsolete codecs)
+const ELECTRON_UNSUPPORTED_VIDEO = new Set([
+  'rm','rmvb','wmv','flv','f4v','roq','bik','nsv','yuv','asf'
+]);
 // ===================== ICON SYSTEM (purple SVG, no emoji) =====================
 const ICON = {
   play: '<path d="M8 5v14l11-7z"/>',
@@ -718,6 +908,8 @@ const ICON = {
   bookmark: '<path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>',
   download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>',
   check: '<polyline points="20 6 9 17 4 12"/>',
+  'check-square': '<polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',
+  user: '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
 };
 function buildIcon(name, sz, fill) {
   const inner = ICON[name] || ICON.file;
@@ -750,7 +942,9 @@ function idbPut(id, blob) {
     if (!idb) return rej('no-idb');
     const t = idb.transaction('blobs', 'readwrite');
     t.objectStore('blobs').put(blob, id);
-    t.oncomplete = () => res(); t.onerror = () => rej(t.error);
+    t.oncomplete = () => res();
+    t.onerror = () => rej(t.error || new Error('idb write error'));
+    t.onabort = () => rej(t.error || new Error('idb write aborted — storage full?'));
   });
 }
 function idbGet(id) {
@@ -758,15 +952,19 @@ function idbGet(id) {
     if (!idb) return rej('no-idb');
     const t = idb.transaction('blobs', 'readonly');
     const rq = t.objectStore('blobs').get(id);
-    rq.onsuccess = () => res(rq.result); rq.onerror = () => rej(rq.error);
+    rq.onsuccess = () => res(rq.result);
+    rq.onerror = () => rej(rq.error);
+    t.onabort = () => rej(t.error || new Error('idb read aborted'));
   });
 }
 function idbDel(id) {
-  return new Promise((res) => {
+  return new Promise((res, rej) => {
     if (!idb) return res();
     const t = idb.transaction('blobs', 'readwrite');
     t.objectStore('blobs').delete(id);
     t.oncomplete = () => res();
+    t.onerror = () => res(); // deletion errors are non-fatal
+    t.onabort = () => res(); // same — if it's already gone, that's fine
   });
 }
 
@@ -781,30 +979,61 @@ const DB = {
   trash: JSON.parse(localStorage.getItem('plex_trash') || '[]'),
   isPro: localStorage.getItem('plex_pro') === 'true',
   proAnnual: localStorage.getItem('plex_pro_annual') === 'true',
+  recentlyViewed: JSON.parse(localStorage.getItem('plex_recently_viewed') || '[]'),
+  tags: JSON.parse(localStorage.getItem('plex_tags') || JSON.stringify([
+    {id:'t_red',name:'Red',color:'#ff453a'},{id:'t_orange',name:'Orange',color:'#ff9f0a'},
+    {id:'t_yellow',name:'Yellow',color:'#ffd60a'},{id:'t_green',name:'Green',color:'#30d158'},
+    {id:'t_blue',name:'Blue',color:'#0a84ff'},{id:'t_purple',name:'Purple',color:'#bf5af2'},
+    {id:'t_gray',name:'Gray',color:'#8e8e93'}
+  ])),
+  fileTags: JSON.parse(localStorage.getItem('plex_file_tags') || '{}'),
 };
+// Purge stale recently-viewed IDs at startup — guards against crash/partial-save ghosts
+(function() {
+  const validIds = new Set(DB.files.map(f => f.id));
+  const before = (DB.recentlyViewed || []).length;
+  DB.recentlyViewed = (DB.recentlyViewed || []).filter(v => validIds.has(v.id));
+  if (DB.recentlyViewed.length !== before) localStorage.setItem('plex_recently_viewed', JSON.stringify(DB.recentlyViewed));
+})();
 // Metadata is tiny — saving always succeeds, so progress is never lost.
 function save() {
-  localStorage.setItem('plex_files', JSON.stringify(DB.files));
-  localStorage.setItem('plex_folders', JSON.stringify(DB.folders));
-  localStorage.setItem('plex_settings', JSON.stringify(DB.settings));
-  localStorage.setItem('plex_subtitles', JSON.stringify(DB.subtitles));
-  localStorage.setItem('plex_bookmarks', JSON.stringify(DB.bookmarks));
-  localStorage.setItem('plex_highlights', JSON.stringify(DB.highlights));
-  localStorage.setItem('plex_favorites', JSON.stringify(DB.favorites));
-  localStorage.setItem('plex_trash', JSON.stringify(DB.trash));
-  localStorage.setItem('plex_pro', DB.isPro);
-  if (DB.proAnnual !== undefined) localStorage.setItem('plex_pro_annual', DB.proAnnual);
+  try {
+    localStorage.setItem('plex_files', JSON.stringify(DB.files));
+    localStorage.setItem('plex_folders', JSON.stringify(DB.folders));
+    localStorage.setItem('plex_settings', JSON.stringify(DB.settings));
+    localStorage.setItem('plex_subtitles', JSON.stringify(DB.subtitles));
+    localStorage.setItem('plex_bookmarks', JSON.stringify(DB.bookmarks));
+    localStorage.setItem('plex_highlights', JSON.stringify(DB.highlights));
+    localStorage.setItem('plex_favorites', JSON.stringify(DB.favorites));
+    localStorage.setItem('plex_trash', JSON.stringify(DB.trash));
+    localStorage.setItem('plex_pro', DB.isPro);
+    if (DB.proAnnual !== undefined) localStorage.setItem('plex_pro_annual', DB.proAnnual);
+    localStorage.setItem('plex_recently_viewed', JSON.stringify(DB.recentlyViewed));
+    localStorage.setItem('plex_tags', JSON.stringify(DB.tags));
+    localStorage.setItem('plex_file_tags', JSON.stringify(DB.fileTags));
+  } catch (e) {
+    console.error('PLEX save failed:', e);
+    toast('Storage full — clear some files to keep settings saved.');
+  }
 }
 
 let currentSection = 'media';
+let currentMediaFile = null;
+let currentAudioFile = null;
 let settingsPrevScreen = 'home';
+let accountPrevScreen = 'home';
+let selectMode = false;
+let selectedItems = new Set();
+let longPressActive = false;
 let playerPrevScreen = 'browse';
 let ebookPrevScreen = 'browse';
 let currentFolder = null;
-let sortAsc = true;
+let sortKey = 'name-asc';
 let autoplayOn = false, loopOn = false, shuffleOn = false;
 let currentMediaIndex = -1, currentMusicIndex = -1;
 let mediaSiblings = [];
+const uploadQueue = []; let uploadTrayOpen = false;
+let currentTagFileId = null;
 let pendingSrtFileId = null;
 let ebookFontSizeVal = 17, ebookTheme = 'dark', ebookCurrentFile = null;
 let activeURLs = [];
@@ -848,7 +1077,7 @@ function getCategory(ext) {
   return 'media';
 }
 function getExt(name) { return (name.split('.').pop() || '').toLowerCase(); }
-function isVideo(f) { return ['mp4','mkv','avi','mov','wmv','flv','webm','m4v','3gp','3g2','ts','mts','m2ts','mpeg','mpg','ogv','rm','rmvb','divx','xvid','f4v','vob','asf','dv','mxf','drc','roq','amv','nsv','qt','bik','hevc','h264','h265','mp2','mpe','mpv','m2v'].includes(getExt(f.name)); }
+function isVideo(f) { return ['mp4','mkv','avi','mov','wmv','flv','webm','m4v','3gp','3g2','ts','mts','m2ts','mpeg','mpg','ogv','rm','rmvb','divx','xvid','f4v','vob','asf','dv','mxf','drc','roq','yuv','amv','nsv','qt','bik','hevc','h264','h265','mp2','mpe','mpv','m2v'].includes(getExt(f.name)); }
 function isImage(f) { return ['png','jpg','jpeg','gif','bmp','webp','heic','heif','tiff','tif','svg','jfif','ico','avif','raw','dng','cr2','cr3','nef','arw','orf','rw2','raf','sr2','pef','x3f','jxr','jp2','j2k','psd','ai','eps'].includes(getExt(f.name)); }
 function isSrt(f) { return getExt(f.name) === 'srt'; }
 function formatBytes(b) {
@@ -899,9 +1128,14 @@ function uniqueName(name, section, folderId) {
 
 // ===================== SCREENS / TOAST / MODALS =====================
 function showScreen(id) {
+  if (selectMode) exitSelectMode();
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
-  if (id === 'browse') refreshBrowseCounts();
+  if (id === 'browse' || id === 'home') {
+    const bs = document.getElementById('browse-search');
+    if (bs && bs.value) { bs.value = ''; filterBrowse(); }
+    refreshBrowseCounts();
+  }
   window.scrollTo(0,0);
 }
 function toast(msg) {
@@ -915,9 +1149,52 @@ function closeModal(id) { document.getElementById(id).classList.remove('active')
 function showUploadModal() { document.getElementById('upload-status').textContent=''; showModal('upload-modal'); }
 function openSettings() {
   settingsPrevScreen = document.querySelector('.screen.active')?.id || 'home';
+  // Show key status
+  updateAISettingsUI();
   showScreen('settings-screen');
 }
 function goBackFromSettings() { showScreen(settingsPrevScreen); }
+function openAccount() {
+  accountPrevScreen = document.querySelector('.screen.active')?.id || 'home';
+  const authRow = document.getElementById('auth-account-row');
+  const browserNote = document.getElementById('account-browser-note');
+  if (!IS_ELECTRON) {
+    if (authRow) authRow.style.display = 'none';
+    if (browserNote) browserNote.style.display = '';
+    const navTitle = document.querySelector('#account-screen .nav-title');
+    if (navTitle) navTitle.textContent = 'Storage & Pro';
+  } else {
+    if (authRow) authRow.style.display = '';
+    if (browserNote) browserNote.style.display = 'none';
+    const navTitle = document.querySelector('#account-screen .nav-title');
+    if (navTitle) navTitle.textContent = 'Account';
+  }
+  updateAccountUI();
+  showScreen('account-screen');
+}
+function goBackFromAccount() { showScreen(accountPrevScreen); }
+function updateAccountUI() {
+  const label = document.getElementById('account-auth-label');
+  const emailSub = document.getElementById('account-email-sub');
+  const proSub = document.getElementById('pro-account-sub');
+  if (!IS_ELECTRON) {
+    if (label) label.textContent = 'Browser Mode';
+    if (emailSub) emailSub.textContent = 'Files stored locally — no account needed';
+  } else {
+    if (label) label.textContent = plexUser ? 'Log Out' : 'Log In / Sign Up';
+    if (emailSub) emailSub.textContent = plexUser ? plexUser.email : 'Create a free account';
+  }
+  if (proSub) proSub.textContent = DB.isPro ? (DB.proAnnual ? 'Active — Annual plan' : 'Active — Monthly plan') : 'Upgrade for $12/mo';
+}
+function handleAccountAuthBtn() {
+  if (!IS_ELECTRON) { toast('Sign up is available in the PLEX desktop app'); return; }
+  if (plexUser) {
+    showConfirm('Log out?', 'You will be signed out of your PLEX account.', () => { plexLogout(); }, 'Log Out');
+  } else {
+    document.querySelectorAll('.auth-screen, .auth-wall').forEach(s => s.classList.remove('active'));
+    document.getElementById('auth-wall').classList.add('active');
+  }
+}
 function showLoader(msg) { document.getElementById('loader-label').textContent = msg||'Loading'; document.getElementById('loading-overlay').classList.add('active'); }
 function hideLoader() { document.getElementById('loading-overlay').classList.remove('active'); }
 
@@ -926,30 +1203,93 @@ async function handleFiles(fileList) {
   const files = Array.from(fileList);
   if (!files.length) return;
   const status = document.getElementById('upload-status');
-  let done = 0;
-  for (const file of files) {
+  let done = 0, failed = 0;
+  const srtPending = [];
+  const thumbQueue = [];
+
+  // ── PHASE 1: Save every file to IDB. ──
+  // Files are stored directly as Blob objects — the browser handles the data
+  // transfer natively without loading anything into the JS heap.
+  // This is why it no longer crashes on large batches.
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    if (!file || !file.name) { failed++; continue; }
+
     const ext = getExt(file.name);
     const section = getCategory(ext);
     const destFolder = (currentSection === section) ? (currentFolder || null) : null;
     const safeName = uniqueName(file.name, section, destFolder);
     const id = Date.now() + '_' + Math.random().toString(36).slice(2);
     const entry = { id, name: safeName, section, folderId: destFolder, size: file.size, ext, dateAdded: new Date().toISOString() };
+
+    const qEntry = { id, name: safeName, size: file.size, section, progress: 0, done: false, cancelled: false };
+    uploadQueue.push(qEntry);
+    updateUploadTray();
+    if (status) status.textContent = `Saving ${i + 1} of ${files.length}: ${safeName}`;
+
     try {
-      await idbPut(id, file);       // store the real blob
+      qEntry.progress = 40; updateUploadTray();
+
+      // Store the File directly — File extends Blob, IDB handles it without
+      // loading the data into JavaScript memory at all.
+      await idbPut(id, file);
+
+      qEntry.progress = 90; updateUploadTray();
       DB.files.push(entry);
-      save();                        // tiny metadata — always succeeds
+      save();
       done++;
-      refreshBrowseCounts();
-      refreshStorageBar();           // <-- now updates correctly
-      if (isSrt(entry)) { promptSrtAttach(entry); }
+
+      if (section !== 'audio') thumbQueue.push(entry);
+      if (isSrt(entry)) srtPending.push(entry);
+
+      qEntry.progress = 100; qEntry.done = true; updateUploadTray();
+
     } catch (err) {
-      status.textContent = 'Storage error — try fewer/smaller files. (' + err + ')';
+      failed++;
+      qEntry.done = true; qEntry.progress = 0; updateUploadTray();
+      console.error('Upload failed:', file.name, err);
+      if (status) status.textContent = `Failed (${i + 1}/${files.length}): ${file.name} — ${err.message || err}`;
     }
-    status.textContent = `Uploaded ${done} of ${files.length} — last: ${safeName} → ${section}`;
+
+    // Yield between files so the browser can breathe
+    await new Promise(r => setTimeout(r, 20));
   }
-  if (currentSection && document.getElementById('files-screen').classList.contains('active')) renderFileList();
+
+  // All files saved — update UI
+  refreshBrowseCounts(); refreshStorageBar();
+  if (document.getElementById('files-screen').classList.contains('active')) renderFileList();
+  if (status) {
+    status.textContent = failed === 0
+      ? `Done — ${done} file${done !== 1 ? 's' : ''} uploaded!`
+      : `${done} of ${files.length} saved (${failed} failed — check storage space).`;
+  }
+  updateUploadTray();
+  setTimeout(() => { uploadQueue.length = 0; updateUploadTray(); if (uploadTrayOpen) toggleUploadTray(); }, 4000);
+  if (srtPending.length) promptSrtAttach(srtPending[0]);
   document.getElementById('file-input').value = '';
   document.getElementById('folder-input').value = '';
+
+  // ── PHASE 2: Thumbnails — runs after all uploads are safely stored. ──
+  // A crash here loses thumbnails only, never file data.
+  // Skip video and oversized files — reading them for a thumbnail is risky on iOS.
+  const SKIP_THUMB_EXTS = ['mp4','webm','mov','m4v','ogv','mkv','avi'];
+  const THUMB_SIZE_LIMIT = 80 * 1024 * 1024; // 80 MB
+  for (const entry of thumbQueue) {
+    const ext = (entry.ext || '').toLowerCase();
+    if (SKIP_THUMB_EXTS.includes(ext)) continue;
+    if (entry.size > THUMB_SIZE_LIMIT) continue;
+    try {
+      const blob = await idbGet(entry.id);
+      if (blob) {
+        await genAndStoreThumb(entry, blob);
+        for (const el of document.querySelectorAll(`[data-id="${entry.id}"]`)) {
+          const wrap = el.closest('[id]');
+          if (wrap) loadThumbs(wrap);
+        }
+      }
+    } catch (e) {}
+    await new Promise(r => setTimeout(r, 100));
+  }
 }
 
 function promptSrtAttach(srtEntry) {
@@ -999,18 +1339,42 @@ function refreshBrowseCounts() {
       trashSection.style.display = 'none';
     }
   }
+  // Purge any stale recently-viewed IDs (files that were deleted)
+  const validIds = new Set(DB.files.map(f => f.id));
+  const stale = (DB.recentlyViewed || []).some(v => !validIds.has(v.id));
+  if (stale) { DB.recentlyViewed = (DB.recentlyViewed || []).filter(v => validIds.has(v.id)); save(); }
+
   const recent = [...DB.files].sort((a,b) => b.dateAdded.localeCompare(a.dateAdded)).slice(0,5);
   const rl = document.getElementById('recent-list');
   if (!recent.length) { rl.innerHTML = '<div style="color:var(--text2);font-size:13px;text-align:center;padding:20px">No files yet. Press Upload to start.</div>'; return; }
   rl.innerHTML = recent.map(f => {
-    const locked = isProFormat(f) && !DB.isPro;
+    const locked = IS_ELECTRON && isProFormat(f) && !DB.isPro;
     return `<div class="file-item bloom${locked?' pro-locked':''}" onclick="openFile('${f.id}')" data-id="${f.id}">
       <div class="file-thumb"><span data-icon="${fileIconName(f)}" data-sz="22"></span></div>
       <div class="file-info"><div class="file-name">${f.name}</div><div class="file-meta">${f.section} · ${formatBytes(f.size)}${locked?' · <span style="color:var(--gold);font-weight:900">PRO</span>':''}</div></div>
       <div class="file-arrow">${locked?'<span data-icon="star" data-sz="16" style="color:var(--gold)"></span>':'<span data-icon="chevron-right" data-sz="16"></span>'}</div>
     </div>`;
   }).join('');
-  renderIcons(rl); attachLongPress(rl);
+  renderIcons(rl); attachLongPress(rl); attachSwipeDelete(rl); loadThumbs(rl);
+  const viewedSection = document.getElementById('viewed-section');
+  const viewedList = document.getElementById('viewed-list');
+  if (viewedSection && viewedList) {
+    const viewed = (DB.recentlyViewed || [])
+      .map(v => DB.files.find(f => f.id === v.id))
+      .filter(Boolean).slice(0, 5);
+    if (viewed.length) {
+      viewedSection.style.display = '';
+      viewedList.innerHTML = viewed.map(f => {
+        const locked = IS_ELECTRON && isProFormat(f) && !DB.isPro;
+        return `<div class="file-item bloom${locked?' pro-locked':''}" onclick="openFile('${f.id}')" data-id="${f.id}">
+          <div class="file-thumb"><span data-icon="${fileIconName(f)}" data-sz="22"></span></div>
+          <div class="file-info"><div class="file-name">${f.name}</div><div class="file-meta">${f.section} · ${formatBytes(f.size)}${locked?' · <span style="color:var(--gold);font-weight:900">PRO</span>':''}</div></div>
+          <div class="file-arrow">${locked?'<span data-icon="star" data-sz="16" style="color:var(--gold)"></span>':'<span data-icon="chevron-right" data-sz="16"></span>'}</div>
+        </div>`;
+      }).join('');
+      renderIcons(viewedList); attachLongPress(viewedList); attachSwipeDelete(viewedList); loadThumbs(viewedList);
+    } else { viewedSection.style.display = 'none'; }
+  }
 }
 
 // ===================== SECTION / FILE LIST =====================
@@ -1033,14 +1397,20 @@ function renderFileList() {
   const files = currentSection === 'favorites'
     ? DB.files.filter(f => DB.favorites.includes(f.id) && f.name.toLowerCase().includes(search))
     : DB.files.filter(f => f.section === currentSection && f.folderId === (currentFolder||null) && f.name.toLowerCase().includes(search));
-  if (sortAsc) { folders.sort((a,b)=>a.name.localeCompare(b.name)); files.sort((a,b)=>a.name.localeCompare(b.name)); }
-  else { folders.sort((a,b)=>b.name.localeCompare(a.name)); files.sort((a,b)=>b.dateAdded.localeCompare(a.dateAdded)); }
+  const natAsc = (a,b) => a.name.localeCompare(b.name, undefined, {numeric:true, sensitivity:'base'});
+  const sortComps = {
+    'name-asc':  (a,b) => a.name.localeCompare(b.name, undefined, {numeric:true, sensitivity:'base'}),
+    'name-desc': (a,b) => b.name.localeCompare(a.name, undefined, {numeric:true, sensitivity:'base'}),
+    'date-desc': (a,b) => b.dateAdded.localeCompare(a.dateAdded),
+    'date-asc':  (a,b) => a.dateAdded.localeCompare(b.dateAdded),
+    'size-desc': (a,b) => (b.size||0) - (a.size||0),
+    'size-asc':  (a,b) => (a.size||0) - (b.size||0),
+    'kind-asc':  (a,b) => (a.ext||'').localeCompare(b.ext||''),
+  };
+  folders.sort(natAsc);
+  files.sort(sortComps[sortKey] || natAsc);
 
-  const breadEl = document.getElementById('breadcrumb-path');
-  if (currentFolder) {
-    const fold = DB.folders.find(f => f.id === currentFolder);
-    breadEl.textContent = (currentSection==='audio'?'Audio':currentSection==='ebook'?'eBooks':'Media') + ' › ' + (fold ? fold.name : '');
-  } else breadEl.textContent = '';
+  buildBreadcrumb();
 
   if (!files.length && !folders.length) {
     const ic = currentSection==='media'?'film':currentSection==='audio'?'music':'book';
@@ -1048,21 +1418,25 @@ function renderFileList() {
     renderIcons(list); return;
   }
   let html = '';
+  if (folders.length && files.length) html += '<div class="list-section-head">Folders</div>';
   folders.forEach(folder => {
     html += `<div class="file-item folder-item bloom" onclick="openFolder('${folder.id}')" data-folder-id="${folder.id}">
       <div class="file-thumb"><span data-icon="folder" data-sz="22"></span></div>
-      <div class="file-info"><div class="file-name">${folder.name}</div><div class="file-meta">${DB.files.filter(f=>f.folderId===folder.id).length} items</div></div>
+      <div class="file-info"><div class="file-name">${folder.name}</div><div class="file-meta">${DB.files.filter(f=>f.folderId===folder.id).length + DB.folders.filter(f=>f.parentId===folder.id).length} items</div></div>
       <div class="file-arrow"><span data-icon="chevron-right" data-sz="16"></span></div></div>`;
   });
+  if (folders.length && files.length) html += '<div class="list-section-head">Files</div>';
   files.forEach(f => {
-    const locked = isProFormat(f) && !DB.isPro;
-    html += `<div class="file-item bloom${locked?' pro-locked':''}" onclick="openFile('${f.id}')" data-id="${f.id}">
+    const locked = IS_ELECTRON && isProFormat(f) && !DB.isPro;
+    html += `<div class="file-item bloom${locked?' pro-locked':''}${selectedItems.has(f.id)?' selected':''}" onclick="if(longPressActive){longPressActive=false;return;} selectMode?toggleSelectItem('${f.id}',this):openFile('${f.id}')" data-id="${f.id}">
+      <div class="sel-check"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><polyline points="2,7 5.5,10.5 12,3" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
       <div class="file-thumb"><span data-icon="${fileIconName(f)}" data-sz="22"></span></div>
-      <div class="file-info"><div class="file-name">${f.name}</div><div class="file-meta">${formatBytes(f.size)} · ${f.ext.toUpperCase()}${locked?' · <span style="color:var(--gold);font-weight:900">PRO</span>':''} · ${new Date(f.dateAdded).toLocaleDateString()}</div></div>
+      <div class="file-info"><div class="file-name">${f.name}</div><div class="file-meta">${formatBytes(f.size)} · ${f.ext.toUpperCase()}${locked?' · <span style="color:var(--gold);font-weight:900">PRO</span>':''} · ${new Date(f.dateAdded).toLocaleDateString()}</div>${(()=>{const ftags=(DB.fileTags[f.id]||[]).map(tid=>DB.tags.find(t=>t.id===tid)).filter(Boolean);return ftags.length?'<div style="display:flex;gap:4px;margin-top:3px">'+ftags.map(t=>`<div style="width:10px;height:10px;border-radius:50%;background:${t.color}"></div>`).join('')+'</div>':''})()}</div>
       <div class="file-arrow">${locked?'<span data-icon="star" data-sz="16" style="color:var(--gold)"></span>':'<span data-icon="chevron-right" data-sz="16"></span>'}</div></div>`;
   });
   list.innerHTML = html;
-  renderIcons(list); attachLongPress(list);
+  renderIcons(list); attachLongPress(list); attachSwipeDelete(list);
+  loadThumbs(list);
 }
 function openFolder(id) { currentFolder = id; renderFileList(); }
 function filesBack() {
@@ -1073,7 +1447,184 @@ function filesBack() {
   } else showScreen('browse');
 }
 function filterFiles() { renderFileList(); }
-function toggleSort() { sortAsc = !sortAsc; renderFileList(); toast('Sorted ' + (sortAsc?'A→Z':'Newest first')); }
+function filterBrowse() {
+  const q = (document.getElementById('browse-search').value || '').toLowerCase().trim();
+  const sections = document.getElementById('browse-sections');
+  const content = document.getElementById('browse-content');
+  const results = document.getElementById('browse-search-results');
+  if (!q) {
+    results.style.display = 'none'; results.innerHTML = '';
+    if (sections) sections.style.display = '';
+    if (content) content.style.display = '';
+    return;
+  }
+  if (sections) sections.style.display = 'none';
+  if (content) content.style.display = 'none';
+  results.style.display = 'block';
+  const matches = DB.files.filter(f => f.name.toLowerCase().includes(q));
+  if (!matches.length) {
+    results.innerHTML = '<div style="color:var(--text2);font-size:13px;text-align:center;padding:40px 20px">No files found for "' + q + '"</div>';
+    return;
+  }
+  const labels = {media:'Media', audio:'Audio', ebook:'eBooks'};
+  results.innerHTML = matches.map(f => {
+    const locked = IS_ELECTRON && isProFormat(f) && !DB.isPro;
+    return `<div class="file-item bloom${locked?' pro-locked':''}" onclick="openFile('${f.id}')" data-id="${f.id}">
+      <div class="file-thumb"><span data-icon="${fileIconName(f)}" data-sz="22"></span></div>
+      <div class="file-info"><div class="file-name">${f.name}</div><div class="file-meta">${labels[f.section]||f.section} · ${formatBytes(f.size)}${locked?' · <span style="color:var(--gold);font-weight:900">PRO</span>':''}</div></div>
+      <div class="file-arrow">${locked?'<span data-icon="star" data-sz="16" style="color:var(--gold)"></span>':'<span data-icon="chevron-right" data-sz="16"></span>'}</div>
+    </div>`;
+  }).join('');
+  renderIcons(results);
+}
+function toggleSelectMode() { selectMode ? exitSelectMode() : enterSelectMode(); }
+function enterSelectMode() {
+  selectMode = true; selectedItems.clear();
+  document.querySelectorAll('.sel-toggle-btn').forEach(b => b.classList.add('sel-active'));
+  const bar = document.getElementById('select-bar');
+  if (bar) bar.classList.add('active');
+  const fl = document.getElementById('files-list');
+  if (fl) fl.classList.add('select-mode');
+  updateSelectBar(); renderFileList(); refreshBrowseCounts();
+}
+function exitSelectMode() {
+  selectMode = false; selectedItems.clear();
+  document.querySelectorAll('.sel-toggle-btn').forEach(b => b.classList.remove('sel-active'));
+  const bar = document.getElementById('select-bar');
+  if (bar) bar.classList.remove('active');
+  const fl = document.getElementById('files-list');
+  if (fl) fl.classList.remove('select-mode');
+  renderFileList(); refreshBrowseCounts();
+}
+function updateSelectBar() {
+  const ct = document.getElementById('select-count');
+  if (ct) ct.textContent = selectedItems.size + ' selected';
+}
+function toggleSelectItem(id, el) {
+  if (selectedItems.has(id)) { selectedItems.delete(id); el.classList.remove('selected'); }
+  else { selectedItems.add(id); el.classList.add('selected'); }
+  updateSelectBar();
+}
+function selectAllFiles() {
+  const search = document.getElementById('file-search').value.toLowerCase();
+  const files = currentSection === 'favorites'
+    ? DB.files.filter(f => DB.favorites.includes(f.id) && f.name.toLowerCase().includes(search))
+    : DB.files.filter(f => f.section === currentSection && f.folderId === (currentFolder||null) && f.name.toLowerCase().includes(search));
+  files.forEach(f => selectedItems.add(f.id));
+  updateSelectBar(); renderFileList();
+}
+function bulkNewFolder() {
+  const ids = [...selectedItems].filter(id => !id.startsWith('f:'));
+  if (!ids.length) { toast('Select at least one file'); return; }
+  const name = prompt('Folder name:');
+  if (!name || !name.trim()) return;
+  const folderId = Date.now() + '_f';
+  DB.folders.push({ id: folderId, name: name.trim(), section: currentSection, parentId: currentFolder || null });
+  ids.forEach(id => {
+    const f = DB.files.find(x => x.id === id);
+    if (f) f.folderId = folderId;
+  });
+  save(); exitSelectMode(); renderFileList(); refreshBrowseCounts();
+  toast('Folder created with ' + ids.length + ' file' + (ids.length !== 1 ? 's' : '') + '.');
+}
+function bulkMove() {
+  if (!selectedItems.size) { toast('Select at least one item'); return; }
+  // Collect selected file IDs and folder IDs
+  const fileIds = [...selectedItems].filter(id => !id.startsWith('f:'));
+  const folderIds = [...selectedItems].filter(id => id.startsWith('f:')).map(id => id.slice(2));
+  // Build destination list: root + all folders in section, excluding selected folders themselves
+  const folders = DB.folders.filter(f => f.section === currentSection && !folderIds.includes(f.id));
+  const sectionLabel = currentSection.replace(/^./, c => c.toUpperCase());
+  let html = `<div class="move-item bloom" onclick="doBulkMove(null)"><span data-icon="folder" data-sz="22"></span><div style="font-size:14px;font-weight:600">${sectionLabel} (root)</div></div>`;
+  folders.forEach(f => {
+    html += `<div class="move-item bloom" onclick="doBulkMove('${f.id}')"><span data-icon="folder" data-sz="22"></span><div style="font-size:14px;font-weight:600">${f.name}</div></div>`;
+  });
+  document.getElementById('move-destinations').innerHTML = html;
+  renderIcons(document.getElementById('move-destinations'));
+  showModal('move-modal');
+}
+function doBulkMove(folderId) {
+  const fileIds = [...selectedItems].filter(id => !id.startsWith('f:'));
+  const folderIds = [...selectedItems].filter(id => id.startsWith('f:')).map(id => id.slice(2));
+  const total = fileIds.length + folderIds.length;
+  fileIds.forEach(id => { const f = DB.files.find(x => x.id === id); if (f) f.folderId = folderId; });
+  folderIds.forEach(id => { const f = DB.folders.find(x => x.id === id); if (f) f.parentId = folderId; });
+  save();
+  closeModal('move-modal');
+  exitSelectMode();
+  renderFileList();
+  toast('Moved ' + total + ' item' + (total !== 1 ? 's' : '') + '.');
+}
+function bulkDelete() {
+  if (!selectedItems.size) return;
+  showConfirm('Delete ' + selectedItems.size + ' item(s)?', 'Moved to Recently Deleted.', async () => {
+    for (const id of selectedItems) {
+      if (id.startsWith('f:')) {
+        const fid = id.slice(2);
+        DB.files.filter(f => f.folderId === fid).forEach(k => {
+          DB.trash.push({...k, deletedAt: new Date().toISOString()});
+          DB.recentlyViewed = (DB.recentlyViewed||[]).filter(v=>v.id!==k.id);
+        });
+        DB.folders = DB.folders.filter(f => f.id !== fid);
+        DB.files = DB.files.filter(f => f.folderId !== fid);
+      } else {
+        const f = DB.files.find(x => x.id === id);
+        if (f) {
+          DB.trash.push({...f, deletedAt: new Date().toISOString()});
+          DB.files = DB.files.filter(x => x.id !== id);
+          DB.favorites = DB.favorites.filter(i => i !== id);
+          DB.recentlyViewed = (DB.recentlyViewed||[]).filter(v=>v.id!==id);
+        }
+      }
+    }
+    save(); renderFileList(); refreshBrowseCounts(); refreshStorageBar(); exitSelectMode();
+  }, 'Delete');
+}
+function toggleSort() { showSortModal(); }
+function showSortModal() {
+  const opts = [
+    {key:'name-asc',  label:'Name A → Z'},
+    {key:'name-desc', label:'Name Z → A'},
+    {key:'date-desc', label:'Newest first'},
+    {key:'date-asc',  label:'Oldest first'},
+    {key:'size-desc', label:'Largest first'},
+    {key:'size-asc',  label:'Smallest first'},
+    {key:'kind-asc',  label:'Kind (file type)'},
+  ];
+  document.getElementById('sort-options-list').innerHTML = opts.map(o =>
+    `<div class="sort-opt${sortKey===o.key?' sort-active':''}" onclick="applySort('${o.key}')">
+      <span>${o.label}</span>
+      ${sortKey===o.key?'<span data-icon="check" data-sz="18"></span>':''}
+    </div>`
+  ).join('');
+  renderIcons(document.getElementById('sort-options-list'));
+  showModal('sort-modal');
+}
+function applySort(key) { sortKey = key; closeModal('sort-modal'); renderFileList(); }
+function buildBreadcrumb() {
+  const breadEl = document.getElementById('breadcrumb-path');
+  if (!breadEl) return;
+  if (!currentFolder) { breadEl.innerHTML = ''; return; }
+  const sectionLabel = {media:'Media', audio:'Audio', ebook:'eBooks', favorites:'Favorites'}[currentSection] || currentSection;
+  const chain = [];
+  let fid = currentFolder;
+  while (fid) {
+    const f = DB.folders.find(x => x.id === fid);
+    if (!f) break;
+    chain.unshift(f);
+    fid = f.parentId || null;
+  }
+  let html = `<span class="bread-seg" onclick="currentFolder=null;renderFileList()">${sectionLabel}</span>`;
+  chain.forEach((seg, i) => {
+    html += ` <span class="bread-sep">›</span> `;
+    if (i < chain.length - 1) {
+      html += `<span class="bread-seg" onclick="openFolder('${seg.id}')">${escHtml(seg.name)}</span>`;
+    } else {
+      html += `<span class="bread-current">${escHtml(seg.name)}</span>`;
+    }
+  });
+  breadEl.innerHTML = html;
+}
 
 // ===================== CREATE FOLDER =====================
 function showCreateFolder() { document.getElementById('folder-name-input').value = ''; showModal('folder-modal'); }
@@ -1087,18 +1638,95 @@ function createFolder() {
 
 // ===================== OPEN FILE =====================
 function revokeURLs() { activeURLs.forEach(u => URL.revokeObjectURL(u)); activeURLs = []; }
-async function blobURL(id) { const b = await idbGet(id); if (!b) return null; const u = URL.createObjectURL(b); activeURLs.push(u); return u; }
+function getMimeType(ext) {
+  const e = ext.toLowerCase();
+  const m = {
+    mp4:'video/mp4', m4v:'video/mp4', webm:'video/webm',
+    mkv: IS_ELECTRON ? 'video/x-matroska' : 'video/mp4',
+    avi:'video/x-msvideo', mov:'video/quicktime',
+    wmv:'video/x-ms-wmv', flv:'video/x-flv',
+    '3gp':'video/3gpp', '3g2':'video/3gpp2',
+    ogv:'video/ogg', ts:'video/mp2t', mpeg:'video/mpeg', mpg:'video/mpeg',
+    mts:'video/mp2t', m2ts:'video/mp2t', hevc:'video/mp4',
+    divx:'video/x-msvideo', vob:'video/mpeg',
+    mp3:'audio/mpeg', m4a:'audio/mp4', aac:'audio/aac', wav:'audio/wav',
+    ogg:'audio/ogg', flac:'audio/flac', opus:'audio/ogg; codecs=opus',
+    wma:'audio/x-ms-wma', aiff:'audio/aiff', aif:'audio/aiff', alac:'audio/mp4',
+    jpg:'image/jpeg', jpeg:'image/jpeg', png:'image/png', gif:'image/gif',
+    webp:'image/webp', heic:'image/heic', svg:'image/svg+xml', bmp:'image/bmp',
+    pdf:'application/pdf', epub:'application/epub+zip',
+  };
+  return m[e] || '';
+}
+async function blobURL(id, ext) {
+  const b = await idbGet(id);
+  if (!b) return null;
+  const mime = ext ? getMimeType(ext) : (b.type || '');
+  const blob = (mime && b.type !== mime) ? new Blob([b], {type: mime}) : b;
+  const u = URL.createObjectURL(blob);
+  activeURLs.push(u);
+  return u;
+}
+
+async function transcodeAndPlay(f, videoEl, fallbackEl) {
+  videoEl.style.display = 'none';
+  fallbackEl.style.display = 'block';
+  const dlUrl = await blobURL(f.id, f.ext);
+  const hint = IS_ELECTRON
+    ? 'Convert to MP4 and re-import for playback.'
+    : 'Use the PLEX desktop app, or convert to MP4 first.';
+  fallbackEl.innerHTML = `<div style="text-align:center;padding:40px 20px;color:var(--text2)">
+    ${buildIcon('film',48,false)}
+    <p style="margin:16px 0 6px;font-size:16px;font-weight:900;color:var(--text)">${f.ext.toUpperCase()} Not Supported</p>
+    <p style="font-size:13px;margin-bottom:4px">Can't decode <b style="color:var(--text)">${f.ext.toUpperCase()}</b> video.</p>
+    <p style="font-size:12px;margin-bottom:24px;color:var(--text2)">${hint}</p>
+    <a href="${dlUrl}" download="${escHtml(f.name)}" class="btn-full" style="display:inline-block;text-decoration:none;padding:13px 24px;max-width:260px">Download — Open in VLC</a>
+  </div>`;
+}
 function openFile(id) {
   const f = DB.files.find(x => x.id === id);
   if (!f) return;
-  if (isProFormat(f) && !DB.isPro) { showPro(); return; }
-  if (f.section === 'media') openMediaPlayer(f);
-  else if (f.section === 'audio') openAudioPlayer(f);
-  else openEbook(f);
+  requireAuth(() => {
+    if (IS_ELECTRON && isProFormat(f) && !DB.isPro) { showPro(); return; }
+    DB.recentlyViewed = (DB.recentlyViewed || []).filter(v => v.id !== id);
+    DB.recentlyViewed.unshift({id, viewedAt: new Date().toISOString()});
+    if (DB.recentlyViewed.length > 20) DB.recentlyViewed = DB.recentlyViewed.slice(0, 20);
+    save();
+    if (f.ext === 'zip') {
+      showConfirm('Extract ZIP?', 'Extract all files from '+f.name+' into this library.', async () => {
+        if (!window.JSZip) { toast('JSZip not available'); return; }
+        showLoader('Extracting…');
+        try {
+          const blob = await idbGet(f.id);
+          const zip = await JSZip.loadAsync(blob);
+          const entries = [];
+          zip.forEach((path, file) => { if (!file.dir && !path.startsWith('__MACOSX')) entries.push({path,file}); });
+          let done = 0;
+          for (const {path,file} of entries) {
+            const b = await file.async('blob');
+            const fname = path.split('/').pop();
+            const ext = getExt(fname);
+            const sec = getCategory(ext);
+            const newId = Date.now()+'_'+Math.random().toString(36).slice(2);
+            await idbPut(newId, b);
+            DB.files.push({id:newId, name:fname, section:sec, folderId:f.folderId, size:b.size, ext, dateAdded:new Date().toISOString()});
+            done++;
+          }
+          save(); hideLoader(); renderFileList(); refreshBrowseCounts(); refreshStorageBar();
+          toast('Extracted '+done+' files');
+        } catch(e) { hideLoader(); toast('Extract failed: '+e.message); }
+      }, 'Extract');
+      return;
+    }
+    if (f.section === 'media') openMediaPlayer(f);
+    else if (f.section === 'audio') openAudioPlayer(f);
+    else openEbook(f);
+  });
 }
 
 // ===================== MEDIA PLAYER =====================
 async function openMediaPlayer(f) {
+  currentMediaFile = f;
   const activeScreen = document.querySelector('.screen.active');
   if (activeScreen && activeScreen.id !== 'player-screen') playerPrevScreen = activeScreen.id;
   showLoader('Opening…');
@@ -1107,7 +1735,7 @@ async function openMediaPlayer(f) {
   document.getElementById('player-title').textContent = f.name;
   document.getElementById('player-nav-title').textContent = f.name;
   video.style.display = 'none'; img.style.display = 'none';
-  const url = await blobURL(f.id);
+  const url = await blobURL(f.id, f.ext);
   hideLoader();
   const fallback = document.getElementById('media-fallback');
   fallback.style.display = 'none';
@@ -1127,30 +1755,33 @@ async function openMediaPlayer(f) {
     document.getElementById('player-subtitle-label').textContent = f.ext.toUpperCase() + ' image';
     document.getElementById('sub-btn').style.display = 'none';
   } else if (isVideo(f)) {
-    video.src = url; video.style.display = 'block';
-    video.onerror = () => {
-      video.style.display = 'none';
-      fallback.style.display = 'block';
-      fallback.innerHTML = `<div style="text-align:center;padding:40px 20px;color:var(--text2)">
-        ${buildIcon('film',56,false)}
-        <p style="margin:20px 0 6px;font-size:18px;font-weight:900;color:var(--text)">Unsupported File Type</p>
-        <p style="font-size:14px;margin-bottom:6px">Sorry, PLEX does not support <b style="color:var(--text)">${f.ext.toUpperCase()}</b> video files.</p>
-        <p style="font-size:12px;margin-bottom:24px">Download it and open in VLC or another player.</p>
-        <a href="${url}" download="${escHtml(f.name)}" class="btn-full" style="display:inline-block;text-decoration:none;padding:13px 24px;max-width:260px">Download ${f.ext.toUpperCase()}</a>
-      </div>`;
-    };
-    setupVideoEvents();
-    const srtId = DB.subtitles[f.id];
-    if (srtId) {
-      const srtFile = DB.files.find(x => x.id === srtId);
-      if (srtFile) await applySrt(video, srtFile);
-      document.getElementById('player-subtitle-label').textContent = 'Subtitles: ' + (srtFile ? srtFile.name : 'None');
-      document.getElementById('sub-btn').style.display = '';
+    const unsupSet = IS_ELECTRON ? ELECTRON_UNSUPPORTED_VIDEO : HTML_UNSUPPORTED_VIDEO;
+    if (unsupSet.has(f.ext)) {
+      transcodeAndPlay(f, video, fallback);
     } else {
-      document.getElementById('player-subtitle-label').textContent = 'No subtitles';
-      document.getElementById('sub-btn').style.display = 'none';
+      video.src = url; video.style.display = 'block';
+      video.onloadedmetadata = () => {
+        if (video.videoWidth === 0 && video.videoHeight === 0) {
+          video.pause(); video.muted = true; video.src = '';
+          transcodeAndPlay(f, video, fallback);
+        }
+      };
+      video.onerror = () => { video.pause(); video.muted = true; video.src = ''; transcodeAndPlay(f, video, fallback); };
+      setupVideoEvents();
+      const srtId = DB.subtitles[f.id];
+      if (srtId) {
+        const srtFile = DB.files.find(x => x.id === srtId);
+        if (srtFile) await applySrt(video, srtFile);
+        document.getElementById('player-subtitle-label').textContent = 'Subtitles: ' + (srtFile ? srtFile.name : 'None');
+        document.getElementById('sub-btn').style.display = '';
+      } else {
+        document.getElementById('player-subtitle-label').textContent = 'No subtitles';
+        document.getElementById('sub-btn').style.display = 'none';
+      }
+      video.play().catch(()=>{});
     }
-    video.play().catch(()=>{});
+  } else {
+    transcodeAndPlay(f, video, fallback);
   }
   mediaSiblings = DB.files.filter(x => x.section==='media' && x.folderId===f.folderId && isVideo(x));
   currentMediaIndex = mediaSiblings.findIndex(x => x.id === f.id);
@@ -1207,16 +1838,20 @@ function renderMediaQueue(files, activeId){
 // ===================== AUDIO PLAYER =====================
 let musicSiblings = [];
 async function openAudioPlayer(f) {
+  currentAudioFile = f;
   const activeAScreen = document.querySelector('.screen.active');
   if (activeAScreen && activeAScreen.id !== 'audio-player-screen') playerPrevScreen = activeAScreen.id;
   showLoader('Opening…');
   revokeURLs();
   const audio = document.getElementById('main-audio');
-  const url = await blobURL(f.id);
+  const url = await blobURL(f.id, f.ext);
   hideLoader();
   audio.src = url;
   audio.onerror = async () => {
-    const dlUrl = await blobURL(f.id);
+    const dlUrl = await blobURL(f.id, f.ext);
+    const audioHint = IS_ELECTRON
+      ? 'Convert to MP3 or M4A and re-import for playback.'
+      : 'Download it and open in a compatible audio player.';
     document.getElementById('audio-player-screen').innerHTML = `
       <div class="nav">
         <button class="nav-back bloom" onclick="closeAudioPlayer()"><span data-icon="chevron-left" data-sz="20"></span></button>
@@ -1224,9 +1859,9 @@ async function openAudioPlayer(f) {
       </div>
       <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;padding:40px 24px;text-align:center;color:var(--text2)">
         ${buildIcon('music',56,false)}
-        <p style="margin:20px 0 6px;font-size:18px;font-weight:900;color:var(--text)">Unsupported File Type</p>
-        <p style="font-size:14px;margin-bottom:6px">Sorry, PLEX does not support <b style="color:var(--text)">${f.ext.toUpperCase()}</b> audio files.</p>
-        <p style="font-size:12px;margin-bottom:24px">Download it and open in a compatible audio player.</p>
+        <p style="margin:20px 0 6px;font-size:18px;font-weight:900;color:var(--text)">Unsupported Audio</p>
+        <p style="font-size:14px;margin-bottom:6px">Can't play <b style="color:var(--text)">${f.ext.toUpperCase()}</b> files.</p>
+        <p style="font-size:12px;margin-bottom:24px">${audioHint}</p>
         ${dlUrl ? `<a href="${dlUrl}" download="${escHtml(f.name)}" class="btn-full" style="display:inline-block;text-decoration:none;padding:13px 24px;max-width:260px">Download ${f.ext.toUpperCase()}</a>` : ''}
       </div>`;
     renderIcons(document.getElementById('audio-player-screen'));
@@ -1250,6 +1885,25 @@ async function openAudioPlayer(f) {
     if (autoplayOn) musicNext();
   };
   audio.play().catch(()=>{});
+  // iOS / macOS lock screen controls
+  if ('mediaSession' in navigator) {
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: f.name.replace(/\.[^.]+$/, ''),
+      artist: 'PLEX',
+      album: '',
+    });
+    navigator.mediaSession.setActionHandler('previoustrack', musicPrev);
+    navigator.mediaSession.setActionHandler('nexttrack', () => { if (shuffleOn) playRandomMusic(); else musicNext(); });
+    navigator.mediaSession.setActionHandler('play', () => audio.play());
+    navigator.mediaSession.setActionHandler('pause', () => audio.pause());
+  }
+  // Reset lyrics panel for new track
+  const lyricsEl = document.getElementById('lyrics-text');
+  if (lyricsEl) {
+    const cached = DB.settings['ai_lyrics_' + f.id];
+    if (cached) { lyricsEl.textContent = cached; document.getElementById('lyrics-ai-btn').style.display='none'; }
+    else { lyricsEl.textContent = 'No lyrics loaded.'; document.getElementById('lyrics-ai-btn').style.display = IS_ELECTRON ? '' : 'none'; }
+  }
   renderMusicQueue(); syncChips();
   showScreen('audio-player-screen');
 }
@@ -1304,6 +1958,53 @@ async function openEbook(f) {
   if (!blob) { hideLoader(); content.innerHTML='<p style="text-align:center;color:var(--red)">File data missing.</p>'; return; }
 
   try {
+    if (isImage(f)) {
+      const imgBlob = blob;
+      const url = URL.createObjectURL(imgBlob);
+      activeURLs.push(url);
+      const siblings = DB.files.filter(s => s.folderId === f.folderId && s.section === 'ebook' && isImage(s));
+      siblings.sort((a,b) => a.name.localeCompare(b.name));
+      let idx = siblings.findIndex(s => s.id === f.id);
+      if (idx < 0) idx = 0;
+
+      function renderSwipeImg(index) {
+        const cur = siblings[index] || f;
+        document.getElementById('ebook-title-nav').textContent = cur.name + (siblings.length > 1 ? ' ('+(index+1)+'/'+siblings.length+')' : '');
+        idbGet(cur.id).then(b => {
+          const oldImg = content.querySelector('.img-swipe-wrap img');
+          if (oldImg && oldImg.src && oldImg.src.startsWith('blob:')) {
+            const oldUrl = oldImg.src;
+            if (activeURLs.includes(oldUrl)) { URL.revokeObjectURL(oldUrl); activeURLs.splice(activeURLs.indexOf(oldUrl),1); }
+          }
+          const u = URL.createObjectURL(b); activeURLs.push(u);
+          content.querySelector('.img-swipe-wrap img').src = u;
+        });
+        content.querySelector('.img-swipe-counter').textContent = (index+1) + ' / ' + siblings.length;
+      }
+
+      let touchStartX = 0;
+      content.innerHTML = `<div class="img-swipe-wrap" id="img-swipe-wrap">
+        ${siblings.length > 1 ? `<button class="img-swipe-arrow left bloom" onclick="imgSwipePrev()">${buildIcon('chevron-left',22,false)}</button>` : ''}
+        <img src="${url}" style="width:100%;display:block;border-radius:8px;min-height:200px;object-fit:contain;" draggable="false">
+        ${siblings.length > 1 ? `<button class="img-swipe-arrow right bloom" onclick="imgSwipeNext()">${buildIcon('chevron-right',22,false)}</button>` : ''}
+      </div>
+      ${siblings.length > 1 ? `<div class="img-swipe-counter">${idx+1} / ${siblings.length}</div>` : ''}`;
+
+      const wrap = content.querySelector('.img-swipe-wrap');
+      if (wrap) {
+        wrap.addEventListener('touchstart', e => { touchStartX = e.touches[0].clientX; }, {passive:true});
+        wrap.addEventListener('touchend', e => {
+          const dx = e.changedTouches[0].clientX - touchStartX;
+          if (Math.abs(dx) > 50) { if (dx < 0) imgSwipeNext(); else imgSwipePrev(); }
+        });
+      }
+
+      window._imgSwipeIdx = idx;
+      window._imgSwiblings = siblings;
+      window.imgSwipeNext = () => { if (window._imgSwipeIdx < window._imgSwiblings.length-1) { window._imgSwipeIdx++; renderSwipeImg(window._imgSwipeIdx); } };
+      window.imgSwipePrev = () => { if (window._imgSwipeIdx > 0) { window._imgSwipeIdx--; renderSwipeImg(window._imgSwipeIdx); } };
+      hideLoader(); return;
+    }
     if (['txt','md','srt'].includes(ext)) {
       const text = await blob.text();
       content.innerHTML = '<pre style="white-space:pre-wrap;font-family:inherit;margin:0">' + escHtml(text) + '</pre>';
@@ -1312,7 +2013,7 @@ async function openEbook(f) {
     } else if (ext === 'pdf' && window.pdfjsLib) {
       await renderPDF(blob, content);
     } else if (ext === 'pdf') {
-      const url = await blobURL(f.id);
+      const url = await blobURL(f.id, f.ext);
       content.innerHTML = `<iframe src="${url}" style="width:100%;height:80vh;border:none;border-radius:8px"></iframe>`;
     } else if (ext === 'cbz') {
       if (!window.JSZip) throw new Error('JSZip not loaded');
@@ -1360,25 +2061,239 @@ function showDownloadFallback(f, container, label) {
   });
 }
 
-async function renderCBZ(blob, container) {
-  const zip = await JSZip.loadAsync(blob);
-  const imageFiles = [];
-  zip.forEach((path, file) => {
-    if (/\.(jpe?g|png|gif|webp|bmp)$/i.test(path) && !path.startsWith('__MACOSX') && !file.dir) {
-      imageFiles.push({ path, file });
+// Streaming ZIP index parser — reads only central directory, never loads full archive
+async function parseCBZIndex(blob) {
+  const tailSize = Math.min(65558, blob.size);
+  const tailBuf = await blob.slice(blob.size - tailSize).arrayBuffer();
+  const tail = new DataView(tailBuf);
+  let eocd = -1;
+  for (let i = tailSize - 22; i >= 0; i--) {
+    if (tail.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+  }
+  if (eocd < 0) throw new Error('No EOCD');
+  const cdOff = tail.getUint32(eocd + 16, true);
+  const cdLen = tail.getUint32(eocd + 12, true);
+  const cdBuf = await blob.slice(cdOff, cdOff + cdLen).arrayBuffer();
+  const cd = new DataView(cdBuf);
+  const dec = new TextDecoder();
+  const entries = [];
+  let pos = 0;
+  while (pos + 46 <= cdBuf.byteLength) {
+    if (cd.getUint32(pos, true) !== 0x02014b50) break;
+    const flags  = cd.getUint16(pos + 8,  true);
+    const method = cd.getUint16(pos + 10, true);
+    const csize  = cd.getUint32(pos + 20, true);
+    const nlen   = cd.getUint16(pos + 28, true);
+    const xlen   = cd.getUint16(pos + 30, true);
+    const clen   = cd.getUint16(pos + 32, true);
+    const loff   = cd.getUint32(pos + 42, true);
+    if (pos + 46 + nlen <= cdBuf.byteLength) {
+      const nb = new Uint8Array(cdBuf, pos + 46, nlen);
+      const name = (flags & 0x800) ? dec.decode(nb) : Array.from(nb, b => String.fromCharCode(b)).join('');
+      if (/\.(jpe?g|png|gif|webp|bmp)$/i.test(name) && !name.startsWith('__MACOSX') && !name.endsWith('/'))
+        entries.push({ name, method, csize, loff });
     }
-  });
-  imageFiles.sort((a, b) => a.path.localeCompare(b.path, undefined, { numeric: true }));
-  if (!imageFiles.length) { container.innerHTML = '<p style="text-align:center;color:var(--text2);padding:40px">No images found in this archive.</p>'; return; }
-  container.innerHTML = '<p style="text-align:center;color:var(--text2);font-size:13px;margin-bottom:16px">' + imageFiles.length + ' pages</p>';
-  for (const { file } of imageFiles) {
-    const data = await file.async('blob');
-    const url = URL.createObjectURL(data);
-    activeURLs.push(url);
-    const img = document.createElement('img');
+    pos += 46 + nlen + xlen + clen;
+  }
+  return entries;
+}
+
+// Read one entry from the ZIP blob without loading the full archive
+async function readCBZEntry(blob, entry) {
+  const lhBuf = await blob.slice(entry.loff, entry.loff + 30).arrayBuffer();
+  const lh = new DataView(lhBuf);
+  if (lh.getUint32(0, true) !== 0x04034b50) throw new Error('Bad local header');
+  const nlen = lh.getUint16(26, true), xlen = lh.getUint16(28, true);
+  const dataStart = entry.loff + 30 + nlen + xlen;
+  const dataBlob = blob.slice(dataStart, dataStart + entry.csize);
+  if (entry.method === 0) return dataBlob; // STORE — JPEG already compressed, just return raw bytes
+  // DEFLATE — use native DecompressionStream (no JSZip needed)
+  const ds = new DecompressionStream('deflate-raw');
+  const w = ds.writable.getWriter(), r = ds.readable.getReader();
+  w.write(await dataBlob.arrayBuffer()).catch(() => {});
+  w.close().catch(() => {});
+  const chunks = [];
+  while (true) { const { done, value } = await r.read(); if (done) break; chunks.push(value); }
+  return new Blob(chunks);
+}
+
+// ===================== THUMBNAILS =====================
+function imgToThumb(blob) {
+  return new Promise(resolve => {
+    const url = URL.createObjectURL(blob);
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const c = document.createElement('canvas'); c.width = c.height = 80;
+        const ctx = c.getContext('2d');
+        const s = Math.max(80 / img.naturalWidth, 80 / img.naturalHeight);
+        ctx.drawImage(img, (80 - img.naturalWidth*s)/2, (80 - img.naturalHeight*s)/2, img.naturalWidth*s, img.naturalHeight*s);
+        URL.revokeObjectURL(url);
+        c.toBlob(resolve, 'image/jpeg', 0.75);
+      } catch(e) { URL.revokeObjectURL(url); resolve(null); }
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
     img.src = url;
-    img.style.cssText = 'width:100%;display:block;margin-bottom:3px;border-radius:3px;';
-    container.appendChild(img);
+  });
+}
+function videoToThumb(blob) {
+  return new Promise(resolve => {
+    const url = URL.createObjectURL(blob);
+    const vid = document.createElement('video');
+    vid.muted = true; vid.playsInline = true; vid.preload = 'metadata';
+    let done = false;
+    const finish = () => {
+      if (done) return; done = true;
+      clearTimeout(timer);
+      try {
+        if (!vid.videoWidth) { URL.revokeObjectURL(url); resolve(null); return; }
+        const c = document.createElement('canvas'); c.width = c.height = 80;
+        const ctx = c.getContext('2d');
+        const s = Math.max(80/vid.videoWidth, 80/vid.videoHeight);
+        ctx.drawImage(vid, (80-vid.videoWidth*s)/2, (80-vid.videoHeight*s)/2, vid.videoWidth*s, vid.videoHeight*s);
+        URL.revokeObjectURL(url);
+        c.toBlob(resolve, 'image/jpeg', 0.75);
+      } catch(e) { URL.revokeObjectURL(url); resolve(null); }
+    };
+    const timer = setTimeout(() => { done = true; URL.revokeObjectURL(url); resolve(null); }, 6000);
+    vid.onseeked = finish;
+    vid.onloadeddata = () => { if (vid.readyState >= 2 && vid.videoWidth > 0) finish(); };
+    vid.onloadedmetadata = () => { vid.currentTime = 0.1; };
+    vid.onerror = () => { done = true; clearTimeout(timer); URL.revokeObjectURL(url); resolve(null); };
+    vid.src = url;
+  });
+}
+async function cbzToThumb(blob) {
+  try {
+    const entries = await parseCBZIndex(blob);
+    entries.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+    if (!entries.length) return null;
+    const page = await readCBZEntry(blob, entries[0]);
+    return imgToThumb(page);
+  } catch(e) { return null; }
+}
+async function pdfToThumb(blob) {
+  if (!window.pdfjsLib) return null;
+  const url = URL.createObjectURL(blob);
+  try {
+    const pdf = await pdfjsLib.getDocument(url).promise;
+    const page = await pdf.getPage(1);
+    const vp = page.getViewport({ scale: 80 / page.getViewport({ scale: 1 }).width });
+    const c = document.createElement('canvas'); c.width = 80; c.height = Math.round(vp.height);
+    await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+    URL.revokeObjectURL(url);
+    return new Promise(resolve => c.toBlob(resolve, 'image/jpeg', 0.75));
+  } catch(e) { URL.revokeObjectURL(url); return null; }
+}
+async function generateThumb(f, blob) {
+  const ext = (f.ext || '').toLowerCase();
+  if (['jpg','jpeg','png','gif','webp','bmp'].includes(ext)) return imgToThumb(blob);
+  if (['mp4','webm','mov','m4v','ogv'].includes(ext)) return videoToThumb(blob);
+  if (ext === 'cbz') return cbzToThumb(blob);
+  if (ext === 'pdf') return pdfToThumb(blob);
+  return null;
+}
+async function genAndStoreThumb(f, blob) {
+  try {
+    const thumb = await generateThumb(f, blob);
+    if (thumb) await idbPut('thumb_' + f.id, thumb);
+  } catch(e) {}
+}
+async function loadThumbs(container) {
+  for (const el of container.querySelectorAll('[data-id]')) {
+    const id = el.dataset.id;
+    const f = DB.files.find(x => x.id === id);
+    if (!f || f.section === 'audio') continue;
+    const thumbBlob = await idbGet('thumb_' + id);
+    if (!thumbBlob) continue;
+    const thumb = el.querySelector('.file-thumb');
+    if (!thumb || thumb.querySelector('img')) continue;
+    const url = URL.createObjectURL(thumbBlob);
+    const img = new Image();
+    img.onload = () => URL.revokeObjectURL(url);
+    img.onerror = () => URL.revokeObjectURL(url);
+    img.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block;';
+    img.src = url;
+    thumb.innerHTML = '';
+    thumb.appendChild(img);
+  }
+}
+
+async function renderCBZ(blob, container) {
+  // Parse only the ZIP index — never loads full archive into memory
+  let entries;
+  try {
+    entries = await parseCBZIndex(blob);
+  } catch(e) {
+    // Fallback: JSZip (loads full archive, slower but more compatible)
+    if (!window.JSZip) { container.innerHTML = '<p style="text-align:center;color:var(--red);padding:40px">Could not open file.</p>'; return; }
+    const zip = await JSZip.loadAsync(blob);
+    entries = [];
+    zip.forEach((path, file) => {
+      if (/\.(jpe?g|png|gif|webp|bmp)$/i.test(path) && !path.startsWith('__MACOSX') && !file.dir)
+        entries.push({ name: path, _zipFile: file });
+    });
+  }
+
+  entries.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+  if (!entries.length) { container.innerHTML = '<p style="text-align:center;color:var(--text2);padding:40px">No images found in this archive.</p>'; return; }
+
+  const total = entries.length;
+  container.innerHTML = '<p style="text-align:center;color:var(--text2);font-size:13px;margin-bottom:16px">' + total + ' pages</p>';
+
+  const placeholders = [];
+  for (let i = 0; i < total; i++) {
+    const div = document.createElement('div');
+    div.dataset.idx = String(i);
+    div.style.cssText = 'width:100%;aspect-ratio:0.7;background:var(--bg3);margin-bottom:3px;border-radius:3px;';
+    container.appendChild(div);
+    placeholders.push(div);
+  }
+
+  // Semaphore — max 2 concurrent page reads to prevent memory crashes on fast scroll
+  let _slots = 2;
+  const _waiters = [];
+  const acquire = () => new Promise(res => { if (_slots > 0) { _slots--; res(); } else _waiters.push(res); });
+  const release = () => { if (_waiters.length) _waiters.shift()(); else _slots++; };
+
+  const loadingSet = new Set();
+  const getBlob = (i) => entries[i]._zipFile ? entries[i]._zipFile.async('blob') : readCBZEntry(blob, entries[i]);
+  const loadPage = async (i) => {
+    if (i < 0 || i >= total || loadingSet.has(i)) return;
+    const ph = placeholders[i];
+    if (!ph || ph.tagName === 'IMG') return;
+    loadingSet.add(i);
+    await acquire();
+    try {
+      const data = await getBlob(i);
+      const url = URL.createObjectURL(data);
+      activeURLs.push(url);
+      const img = document.createElement('img');
+      img.src = url; img.decoding = 'async';
+      img.style.cssText = 'width:100%;display:block;margin-bottom:3px;border-radius:3px;';
+      const cur = placeholders[i];
+      if (cur && cur.parentNode && cur.tagName !== 'IMG') { cur.replaceWith(img); placeholders[i] = img; }
+    } catch(_) { loadingSet.delete(i); }
+    finally { release(); }
+  };
+
+  await loadPage(0);
+  loadPage(1);
+  loadPage(2);
+
+  if (total > 3 && 'IntersectionObserver' in window) {
+    const obs = new IntersectionObserver((ioEntries) => {
+      ioEntries.forEach(io => {
+        if (!io.isIntersecting) return;
+        const idx = parseInt(io.target.dataset.idx);
+        obs.unobserve(io.target);
+        loadPage(idx);
+        loadPage(idx + 1);
+      });
+    }, { rootMargin: '300px' });
+    for (let i = 3; i < total; i++) { if (placeholders[i].tagName !== 'IMG') obs.observe(placeholders[i]); }
+  } else {
+    for (let i = 3; i < total; i++) await loadPage(i);
   }
 }
 
@@ -1660,15 +2575,57 @@ async function renderPDF(blob, container) {
   const pdf = await pdfjsLib.getDocument({data: buf}).promise;
   container.innerHTML = '';
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  for (let p = 1; p <= pdf.numPages; p++) {
-    const page = await pdf.getPage(p);
-    const viewport = page.getViewport({scale: 1.5});
-    const canvas = document.createElement('canvas');
-    canvas.width = viewport.width * dpr; canvas.height = viewport.height * dpr;
-    canvas.style.cssText = 'width:100%;max-width:680px;margin:0 auto 12px;display:block;border-radius:6px;';
-    container.appendChild(canvas);
-    const ctx = canvas.getContext('2d'); ctx.scale(dpr, dpr);
-    await page.render({canvasContext: ctx, viewport}).promise;
+  const total = pdf.numPages;
+
+  // Create placeholder divs for all pages — render lazily as user scrolls
+  const wrappers = [];
+  for (let p = 1; p <= total; p++) {
+    const div = document.createElement('div');
+    div.dataset.page = String(p);
+    div.style.cssText = 'width:100%;max-width:680px;margin:0 auto 12px;aspect-ratio:0.77;background:var(--bg3);border-radius:6px;';
+    container.appendChild(div);
+    wrappers.push(div);
+  }
+
+  // Sequential render queue — PDF.js can only render one page at a time
+  const queue = [];
+  let rendering = false;
+  const drain = async () => {
+    if (rendering) return;
+    rendering = true;
+    while (queue.length) {
+      const { p, wrapper } = queue.shift();
+      if (!wrapper.parentNode) continue;
+      try {
+        const page = await pdf.getPage(p);
+        const viewport = page.getViewport({ scale: 1.5 });
+        const canvas = document.createElement('canvas');
+        canvas.width = viewport.width * dpr; canvas.height = viewport.height * dpr;
+        canvas.style.cssText = 'width:100%;max-width:680px;display:block;border-radius:6px;';
+        const ctx = canvas.getContext('2d'); ctx.scale(dpr, dpr);
+        await page.render({ canvasContext: ctx, viewport }).promise;
+        if (wrapper.parentNode) wrapper.replaceWith(canvas);
+      } catch(_) {}
+    }
+    rendering = false;
+  };
+  const enqueuePage = (p, wrapper) => { queue.push({ p, wrapper }); drain(); };
+
+  // Render first page immediately
+  enqueuePage(1, wrappers[0]);
+
+  if (total > 1 && 'IntersectionObserver' in window) {
+    const obs = new IntersectionObserver(entries => {
+      entries.forEach(e => {
+        if (!e.isIntersecting) return;
+        const p = parseInt(e.target.dataset.page);
+        obs.unobserve(e.target);
+        if (!isNaN(p)) enqueuePage(p, e.target);
+      });
+    }, { rootMargin: '400px' });
+    for (let i = 1; i < total; i++) obs.observe(wrappers[i]);
+  } else {
+    for (let p = 2; p <= total; p++) enqueuePage(p, wrappers[p-1]);
   }
 }
 function updateEbookProgress() {
@@ -1725,26 +2682,6 @@ function addBookmark() {
   DB.bookmarks[id].push({pos:c.scrollTop, label:'Bookmark at '+pct+'%'});
   save(); toast('Bookmark saved at '+pct+'%');
 }
-function highlightSelection() {
-  const sel = window.getSelection();
-  if (!sel || !sel.toString().trim()) { toast('Select text first, then tap Highlight'); return; }
-  if (!ebookCurrentFile) return;
-  const id = ebookCurrentFile.id;
-  if (!DB.highlights[id]) DB.highlights[id] = [];
-  DB.highlights[id].push(sel.toString().trim().slice(0,300));
-  save(); toast('Highlight saved!');
-}
-function exportNotes() {
-  if (!ebookCurrentFile) return;
-  const id = ebookCurrentFile.id;
-  const bm = (DB.bookmarks[id]||[]).map(b=>b.label).join('\n') || '(none)';
-  const hl = (DB.highlights[id]||[]).join('\n\n') || '(none)';
-  const text = ebookCurrentFile.name + '\n\n=== BOOKMARKS ===\n' + bm + '\n\n=== HIGHLIGHTS ===\n' + hl;
-  const blob = new Blob([text], {type:'text/plain'});
-  const a = document.createElement('a'); a.href=URL.createObjectURL(blob);
-  a.download = ebookCurrentFile.name.replace(/\.[^.]+$/,'') + '_notes.txt'; a.click();
-  toast('Notes exported');
-}
 function showEbookInfo(){ if(ebookCurrentFile) showFileInfo(ebookCurrentFile); }
 function toggleEbookMenu(){ const tb=document.getElementById('ebook-toolbar'); tb.style.display = tb.style.display==='none'?'flex':'none'; }
 function closeEbook(){ if(window.speechSynthesis) speechSynthesis.cancel(); revokeURLs(); showScreen(ebookPrevScreen); }
@@ -1755,7 +2692,7 @@ let ctxTarget = null, ctxIsFolder = false;
 function attachLongPress(root) {
   (root||document).querySelectorAll('[data-id]').forEach(el => {
     let timer;
-    const start = e => { timer = setTimeout(() => openCtx(e.touches?e.touches[0]:e, el.dataset.id, false), 550); };
+    const start = e => { const ev = e.touches?.[0] ?? e; timer = setTimeout(() => { longPressActive = true; openCtx(ev, el.dataset.id, false); }, 350); };
     el.addEventListener('touchstart', start, {passive:true});
     el.addEventListener('touchend', () => clearTimeout(timer));
     el.addEventListener('touchmove', () => clearTimeout(timer));
@@ -1770,10 +2707,88 @@ function attachLongPress(root) {
     el.addEventListener('contextmenu', e => { e.preventDefault(); openCtx(e, el.dataset.folderId, true); });
   });
 }
+let _openSwipeEl = null;
+function attachSwipeDelete(root) {
+  (root||document).querySelectorAll('[data-id]').forEach(el => {
+    if (el.closest('.swipe-row')) return;
+    const id = el.dataset.id;
+    const row = document.createElement('div');
+    row.className = 'swipe-row';
+    el.parentNode.insertBefore(row, el);
+    // Button goes in FIRST (lower in paint order), file item SECOND (paints on top, covering button)
+    const btn = document.createElement('button');
+    btn.className = 'swipe-del-btn';
+    btn.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>';
+    btn.addEventListener('click', e => { e.stopPropagation(); swipeDeleteFile(id); });
+    row.appendChild(btn);
+    row.appendChild(el);
+
+    const SNAP = 72;
+    let sx, sy, cx = 0, intent = null, isOpen = false;
+    const snapTo = (to, anim=true) => {
+      el.style.transition = anim ? 'transform .2s ease' : '';
+      el.style.transform = to ? `translateX(${to}px)` : '';
+      cx = to; isOpen = to < 0;
+      btn.style.pointerEvents = isOpen ? 'auto' : 'none';
+      btn.style.visibility = isOpen ? 'visible' : 'hidden';
+      _openSwipeEl = isOpen ? el : (_openSwipeEl === el ? null : _openSwipeEl);
+    };
+    const closeIfOpen = () => { if (isOpen) snapTo(0); };
+
+    el.addEventListener('touchstart', e => {
+      if (_openSwipeEl && _openSwipeEl !== el) {
+        _openSwipeEl.style.transition = 'transform .2s ease';
+        _openSwipeEl.style.transform = '';
+        _openSwipeEl = null;
+      }
+      sx = e.touches[0].clientX; sy = e.touches[0].clientY;
+      intent = null; el.style.transition = '';
+    }, {passive:true});
+
+    el.addEventListener('touchmove', e => {
+      if (selectMode) return; // never swipe in select mode
+      const dx = e.touches[0].clientX - sx;
+      const dy = e.touches[0].clientY - sy;
+      if (!intent && (Math.abs(dx) > 12 || Math.abs(dy) > 12))
+        intent = (Math.abs(dx) > Math.abs(dy) * 1.5) ? 'h' : 'v';
+      if (intent === 'h') {
+        e.preventDefault();
+        btn.style.visibility = 'visible';
+        const base = isOpen ? -SNAP : 0;
+        cx = Math.max(-SNAP, Math.min(0, base + dx));
+        el.style.transform = `translateX(${cx}px)`;
+      }
+    }, {passive:false});
+
+    el.addEventListener('touchend', () => {
+      if (intent === 'h') snapTo(cx < -SNAP / 2 ? -SNAP : 0);
+    }, {passive:true});
+
+    // prevent file open while swiped open
+    el.addEventListener('click', e => {
+      if (isOpen) { e.stopImmediatePropagation(); snapTo(0); }
+    }, true);
+  });
+}
+function swipeDeleteFile(id) {
+  const f = DB.files.find(x => x.id === id);
+  if (!f) return;
+  showConfirm('Delete "'+f.name+'"?', 'Moved to Recently Deleted. Use Clear to permanently remove.', () => {
+    DB.trash.push({...f, deletedAt: new Date().toISOString()});
+    DB.files = DB.files.filter(x => x.id !== id);
+    DB.favorites = DB.favorites.filter(i => i !== id);
+    DB.recentlyViewed = (DB.recentlyViewed||[]).filter(v => v.id !== id);
+    save(); renderFileList(); refreshBrowseCounts(); refreshStorageBar();
+    toast('Moved to Recently Deleted.');
+  });
+}
 function openCtx(e, id, isFolder) {
   ctxIsFolder = isFolder;
   ctxTarget = isFolder ? DB.folders.find(f=>f.id===id) : DB.files.find(f=>f.id===id);
   if (!ctxTarget) return;
+  // Show/hide file-only items
+  const newFolderItem = document.getElementById('ctx-newfolder-item');
+  if (newFolderItem) newFolderItem.style.display = isFolder ? 'none' : '';
   // Update favorites label based on current state
   const favItem = document.getElementById('ctx-fav-item');
   if (favItem) {
@@ -1783,9 +2798,17 @@ function openCtx(e, id, isFolder) {
   }
   const menu = document.getElementById('context-menu');
   menu.classList.add('active');
-  const x = Math.min((e.clientX||e.pageX||100), window.innerWidth-225);
-  const y = Math.min((e.clientY||e.pageY||100), window.innerHeight-360);
-  menu.style.left = Math.max(8,x)+'px'; menu.style.top = Math.max(8,y)+'px';
+  const mw = 192, mh = 126;
+  const tx = e.clientX || e.pageX || window.innerWidth / 2;
+  const ty = e.clientY || e.pageY || window.innerHeight / 2;
+  // Prefer appearing just below the touch/click point; flip above if near bottom
+  let mx = tx - mw / 2;
+  let my = ty + 12;
+  if (my + mh > window.innerHeight - 12) my = ty - mh - 12;
+  mx = Math.max(8, Math.min(mx, window.innerWidth - mw - 8));
+  my = Math.max(8, my);
+  menu.style.left = mx + 'px'; menu.style.top = my + 'px';
+  menu.style.right = ''; menu.style.bottom = ''; menu.style.width = '';
   setTimeout(()=>document.addEventListener('click', dismissCtx, {once:true}), 10);
 }
 function dismissCtx(){ document.getElementById('context-menu').classList.remove('active'); }
@@ -1802,19 +2825,61 @@ async function ctxAction(action) {
     if (blob) await idbPut(newId, blob);
     const copy = {...ctxTarget, id:newId, name:uniqueName(ctxTarget.name.replace(/(\.[^.]+)$/,'_copy$1'), ctxTarget.section, ctxTarget.folderId), dateAdded:new Date().toISOString()};
     DB.files.push(copy); save(); renderFileList(); refreshStorageBar(); toast('Duplicated!');
+  } else if (action === 'newfolder') {
+    if (ctxIsFolder) return;
+    const defaultName = ctxTarget.name.replace(/\.[^.]+$/, '');
+    const folderName = prompt('Folder name:', defaultName);
+    if (!folderName || !folderName.trim()) return;
+    const folderId = Date.now() + '_f';
+    DB.folders.push({ id: folderId, name: folderName.trim(), section: ctxTarget.section, parentId: currentFolder || null });
+    ctxTarget.folderId = folderId;
+    save(); renderFileList(); refreshBrowseCounts();
+    toast((ctxTarget.section === 'audio' ? 'Playlist' : 'Folder') + ' created!');
   } else if (action === 'move') {
     showMoveModal();
   } else if (action === 'compress') {
-    toast('ZIP compression needs the native app build');
+    if (!window.JSZip) { toast('ZIP library not available'); return; }
+    showLoader('Compressing…');
+    try {
+      const zip = new JSZip();
+      if (ctxIsFolder) {
+        const kids = DB.files.filter(f => f.folderId === ctxTarget.id);
+        if (!kids.length) { hideLoader(); toast('Empty folder'); return; }
+        for (const kid of kids) { const b = await idbGet(kid.id); if (b) zip.file(kid.name, b); }
+      } else {
+        const b = await idbGet(ctxTarget.id); if (b) zip.file(ctxTarget.name, b);
+      }
+      const zipBlob = await zip.generateAsync({type:'blob',compression:'DEFLATE',compressionOptions:{level:6}});
+      const zipName = (ctxIsFolder ? ctxTarget.name : ctxTarget.name.replace(/\.[^.]+$/,'')) + '.zip';
+      const newId = Date.now()+'_'+Math.random().toString(36).slice(2);
+      await idbPut(newId, zipBlob);
+      const sec = ctxIsFolder ? (currentSection||'media') : ctxTarget.section;
+      DB.files.push({id:newId, name:zipName, section:sec, folderId:ctxIsFolder?currentFolder:ctxTarget.folderId, size:zipBlob.size, ext:'zip', dateAdded:new Date().toISOString()});
+      save(); hideLoader(); renderFileList(); refreshBrowseCounts(); refreshStorageBar(); toast('Compressed to '+zipName);
+    } catch(e) { hideLoader(); toast('Compress failed: '+e.message); }
+  } else if (action === 'tag') {
+    if (!ctxIsFolder) openTagModal(ctxTarget.id);
+    else toast('Tags work on files, not folders');
+  } else if (action === 'save') {
+    const blob = await idbGet(ctxTarget.id);
+    if (!blob) { toast('File data not found'); return; }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = ctxTarget.name;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    toast('Saving ' + ctxTarget.name + '…');
   } else if (action === 'share') {
     const blob = await idbGet(ctxTarget.id);
-    if (navigator.share && blob) {
-      try { await navigator.share({files:[new File([blob], ctxTarget.name, {type:blob.type})], title:ctxTarget.name}); }
-      catch(e){}
-    } else if (blob) {
-      const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=ctxTarget.name; a.click();
-      toast('Downloaded (sharing comes with the native app)');
-    } else toast('Nothing to share');
+    if (!blob) { toast('File data not found'); return; }
+    if (navigator.share) {
+      try { await navigator.share({files:[new File([blob], ctxTarget.name, {type:blob.type})], title:ctxTarget.name}); return; }
+      catch(e){ if (e.name !== 'AbortError') { /* fall through to download */ } else return; }
+    }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = ctxTarget.name;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(()=>URL.revokeObjectURL(a.href), 5000);
+    toast('Saved to Downloads');
   } else if (action === 'info') {
     showFileInfo(ctxTarget);
   } else if (action === 'favorite') {
@@ -1825,13 +2890,17 @@ async function ctxAction(action) {
     showConfirm('Delete "'+ctxTarget.name+'"?', 'Moved to Recently Deleted. Use Clear to permanently remove.', async () => {
       if (ctxIsFolder) {
         const kids = DB.files.filter(f=>f.folderId===ctxTarget.id);
-        kids.forEach(k => { DB.trash.push({...k, deletedAt: new Date().toISOString()}); });
+        kids.forEach(k => {
+          DB.trash.push({...k, deletedAt: new Date().toISOString()});
+          DB.recentlyViewed = (DB.recentlyViewed||[]).filter(v=>v.id!==k.id);
+        });
         DB.folders = DB.folders.filter(f=>f.id!==ctxTarget.id);
         DB.files = DB.files.filter(f=>f.folderId!==ctxTarget.id);
       } else {
         DB.trash.push({...ctxTarget, deletedAt: new Date().toISOString()});
         DB.files = DB.files.filter(f=>f.id!==ctxTarget.id);
         DB.favorites = DB.favorites.filter(i=>i!==ctxTarget.id);
+        DB.recentlyViewed = (DB.recentlyViewed||[]).filter(v=>v.id!==ctxTarget.id);
       }
       save(); renderFileList(); refreshBrowseCounts(); refreshStorageBar(); toast('Moved to Recently Deleted.');
     });
@@ -1880,10 +2949,16 @@ function doMove(folderId) {
 // ===================== STORAGE =====================
 function refreshStorageBar() {
   const total = DB.files.reduce((s,f)=>s+(f.size||0), 0);
-  const maxBytes = DB.isPro ? 1099511627776 : 274877906944;
-  const pct = Math.min(100, (total/maxBytes)*100);
+  let label, pct;
+  if (IS_ELECTRON) {
+    const maxBytes = DB.isPro ? 1099511627776 : 274877906944;
+    pct = Math.min(100, (total/maxBytes)*100);
+    label = formatBytes(total) + ' / ' + (DB.isPro?'1 TB':'256 GB') + ' used';
+  } else {
+    pct = 0;
+    label = formatBytes(total) + ' stored';
+  }
   document.getElementById('storage-fill').style.width = pct + '%';
-  const label = formatBytes(total) + ' / ' + (DB.isPro?'1 TB':'256 GB') + ' used';
   document.getElementById('storage-label').textContent = label;
   const se = document.getElementById('settings-storage-sub'); if (se) se.textContent = label;
 }
@@ -1895,8 +2970,10 @@ async function clearTrash() {
     'Permanently delete ' + DB.trash.length + ' file' + (DB.trash.length !== 1 ? 's' : '') + '?',
     'This cannot be undone.',
     async () => {
+      const trashIds = new Set(DB.trash.map(f => f.id));
       for (const f of DB.trash) await idbDel(f.id);
       DB.trash = [];
+      DB.recentlyViewed = (DB.recentlyViewed || []).filter(v => !trashIds.has(v.id));
       save();
       refreshBrowseCounts();
       refreshStorageBar();
@@ -1919,8 +2996,360 @@ function recoverFile(id) {
   toast(f.name + ' recovered!');
 }
 
+
+// ===================== AI (Claude + Whisper) =====================
+function getClaudeKey() { return localStorage.getItem('plex_claude_key') || ''; }
+function getOpenAIKey() { return localStorage.getItem('plex_openai_key') || ''; }
+
+function saveAIKeys() {
+  const cVal = document.getElementById('claude-key-input').value.trim();
+  const oVal = document.getElementById('openai-key-input').value.trim();
+  if (cVal) localStorage.setItem('plex_claude_key', cVal); else localStorage.removeItem('plex_claude_key');
+  if (oVal) localStorage.setItem('plex_openai_key', oVal); else localStorage.removeItem('plex_openai_key');
+  document.getElementById('claude-key-input').value = '';
+  document.getElementById('openai-key-input').value = '';
+  toast('Keys saved!');
+  updateAISettingsUI();
+}
+function updateAISettingsUI() {
+  if (!IS_ELECTRON) return;
+  const badge = document.getElementById('ai-status-badge');
+  const override = document.getElementById('ai-key-override');
+  const sub = document.getElementById('ai-status-sub');
+  if (!badge) return;
+  if (DB.isPro) {
+    badge.textContent = 'ACTIVE';
+    if (sub) sub.textContent = 'Included with your Pro plan';
+    if (override) override.style.display = 'none';
+  } else {
+    badge.textContent = '';
+    if (sub) sub.textContent = getClaudeKey() ? 'Using personal key' : 'Requires Pro or personal key';
+    if (override) override.style.display = 'flex';
+  }
+}
+// MAI backend proxy URL — swaps in when backend is connected
+const MAI_API = 'https://maimusicai.com/api/plex';
+
+async function callClaude(userMsg, systemMsg) {
+  // Try MAI backend first (Pro server-side key)
+  if (DB.isPro) {
+    try {
+      const resp = await fetch(MAI_API + '/claude', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ prompt: userMsg, system: systemMsg || '' })
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        return data.text || '';
+      }
+    } catch(_) { /* backend not connected yet, fall through */ }
+  }
+  // Fallback to personal key
+  const key = getClaudeKey();
+  if (!key) throw new Error('AI requires Pro or an API key in Settings');
+  const resp = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key': key,
+      'anthropic-version': '2023-06-01',
+      'content-type': 'application/json',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    },
+    body: JSON.stringify({
+      model: 'claude-opus-4-7',
+      max_tokens: 2048,
+      system: systemMsg || '',
+      messages: [{ role: 'user', content: userMsg }]
+    })
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err.error?.message || 'Claude error ' + resp.status);
+  }
+  const data = await resp.json();
+  return data.content?.[0]?.text || '';
+}
+
+async function callWhisper(blob, filename, format) {
+  // Try MAI backend first
+  if (DB.isPro) {
+    try {
+      const form = new FormData();
+      form.append('file', blob, filename);
+      form.append('format', format || 'text');
+      const resp = await fetch(MAI_API + '/whisper', { method: 'POST', body: form });
+      if (resp.ok) return await resp.text();
+    } catch(_) { /* fall through */ }
+  }
+  // Fallback to personal key
+  const key = getOpenAIKey();
+  if (!key) throw new Error('Transcription requires Pro or an OpenAI key in Settings');
+  if (blob.size > 25 * 1024 * 1024) throw new Error('File exceeds Whisper 25 MB limit');
+  const form = new FormData();
+  form.append('file', blob, filename);
+  form.append('model', 'whisper-1');
+  form.append('response_format', format || 'text');
+  const resp = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + key },
+    body: form
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err.error?.message || 'Whisper error ' + resp.status);
+  }
+  return await resp.text();
+}
+
+async function getAILyrics() {
+  if (!IS_ELECTRON) return;
+  if (!currentAudioFile) { toast('No audio loaded'); return; }
+  const cached = DB.settings['ai_lyrics_' + currentAudioFile.id];
+  if (cached) { showLyricsText(cached); return; }
+  if (!getClaudeKey()) { toast('Add a Claude API key in Settings → AI Features'); openSettings(); return; }
+  showLoader('Getting lyrics…');
+  try {
+    const name = currentAudioFile.name.replace(/\.[^.]+$/, '');
+    const lyrics = await callClaude(
+      'Find or write the lyrics for this song: "' + name + '". Return only the lyrics, no intro text.',
+      'You are a lyrics assistant. If you know the song, return the real lyrics. If not, write fitting creative lyrics. Return only the lyrics text with line breaks, no explanation.'
+    );
+    DB.settings['ai_lyrics_' + currentAudioFile.id] = lyrics; save();
+    showLyricsText(lyrics);
+    hideLoader(); toast('Lyrics loaded!');
+  } catch(e) {
+    hideLoader(); toast('AI error: ' + e.message);
+  }
+}
+
+function showLyricsText(text) {
+  const el = document.getElementById('lyrics-text');
+  if (el) el.textContent = text;
+  const btn = document.getElementById('lyrics-ai-btn');
+  if (btn) btn.style.display = 'none';
+}
+
+async function getEbookSummary() {
+  if (!IS_ELECTRON) return;
+  if (!ebookCurrentFile) { toast('No file open'); return; }
+  if (!getClaudeKey()) { toast('Add a Claude API key in Settings → AI Features'); openSettings(); return; }
+  const content = document.getElementById('ebook-content');
+  const text = content.innerText?.slice(0, 4000);
+  if (!text?.trim()) { toast('No readable text on this page'); return; }
+  showLoader('Summarizing…');
+  try {
+    const summary = await callClaude(
+      'Summarize this text concisely in 3-5 sentences:\n\n' + text,
+      'You are a reading assistant. Give a clear, concise summary.'
+    );
+    hideLoader();
+    // Show summary in a toast-style overlay
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:9998;background:rgba(13,13,13,.92);display:flex;align-items:flex-end;padding:20px;box-sizing:border-box';
+    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+    const sheet = document.createElement('div');
+    sheet.style.cssText = 'background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:20px;width:100%;max-height:60vh;overflow-y:auto';
+    sheet.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><b style="font-size:15px">AI Summary</b></div><p style="font-size:14px;line-height:1.7;color:var(--text2)">' + escHtml(summary) + '</p>';
+    const closeBtn = document.createElement('button');
+    closeBtn.textContent = '×';
+    closeBtn.style.cssText = 'background:none;border:none;color:var(--text2);font-size:22px;cursor:pointer';
+    closeBtn.onclick = () => overlay.remove();
+    sheet.querySelector('div').appendChild(closeBtn);
+    overlay.appendChild(sheet);
+    document.body.appendChild(overlay);
+  } catch(e) { hideLoader(); toast('AI error: ' + e.message); }
+}
+
+async function autoGenSubtitles() {
+  if (!IS_ELECTRON) return;
+  if (!DB.isPro && !getOpenAIKey()) { showPro(); return; }
+  if (!getOpenAIKey()) { toast('Add an OpenAI API key in Settings → AI Features'); openSettings(); return; }
+  if (!currentMediaFile || !isVideo({name: currentMediaFile.name, ext: currentMediaFile.ext})) { toast('No video loaded'); return; }
+  showLoader('Transcribing audio…');
+  try {
+    const blob = await idbGet(currentMediaFile.id);
+    const srt = await callWhisper(blob, currentMediaFile.name, 'srt');
+    const srtId = Date.now() + '_srt_' + Math.random().toString(36).slice(2);
+    const srtBlob = new Blob([srt], { type: 'text/plain' });
+    await idbPut(srtId, srtBlob);
+    const srtEntry = { id: srtId, name: currentMediaFile.name.replace(/\.[^.]+$/, '') + '_subtitles.srt', section: 'media', ext: 'srt', size: srtBlob.size, dateAdded: new Date().toISOString(), folderId: currentMediaFile.folderId || null };
+    DB.files.push(srtEntry);
+    DB.subtitles[currentMediaFile.id] = srtId;
+    save();
+    const video = document.getElementById('main-video');
+    await applySrt(video, srtEntry);
+    document.getElementById('player-subtitle-label').textContent = 'Subtitles: AI generated';
+    document.getElementById('sub-btn').style.display = '';
+    hideLoader(); toast('Subtitles generated!');
+  } catch(e) { hideLoader(); toast('Error: ' + e.message); }
+}
+
+
+// ===================== AUTH (fully local + EmailJS verification) =====================
+// ── EmailJS config — create a free account at emailjs.com and fill these in ──
+const EMAILJS_PUBLIC_KEY  = 'YOUR_PUBLIC_KEY';
+const EMAILJS_SERVICE_ID  = 'YOUR_SERVICE_ID';
+const EMAILJS_TEMPLATE_ID = 'YOUR_TEMPLATE_ID';
+// Template variables used: {{to_email}}, {{code}}
+// ─────────────────────────────────────────────────────────────────────────────
+
+let plexUser = null;
+let pendingAuthAction = null;
+let pendingVerifyEmail = '';
+let pendingVerifyHash  = '';
+let pendingVerifyCode  = '';
+
+function getPlexUsers() { return JSON.parse(localStorage.getItem('plex_local_users') || '[]'); }
+function savePlexUsers(u) { localStorage.setItem('plex_local_users', JSON.stringify(u)); }
+function getSession() { return JSON.parse(localStorage.getItem('plex_session') || 'null'); }
+function saveSession(email) { localStorage.setItem('plex_session', JSON.stringify({ email })); }
+function clearSession() { localStorage.removeItem('plex_session'); }
+
+async function hashPassword(pw) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pw));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+function genCode() { return String(Math.floor(100000 + Math.random() * 900000)); }
+
+function checkAuth() {
+  const s = getSession();
+  plexUser = s ? { email: s.email } : null;
+  updateAuthUI();
+}
+
+function updateAuthUI() {
+  const userEl = document.getElementById('settings-user-email');
+  if (userEl) userEl.textContent = plexUser ? plexUser.email : 'Not logged in';
+  const loginBtn = document.getElementById('settings-login-btn');
+  if (loginBtn) loginBtn.textContent = plexUser ? 'Log Out' : 'Log In';
+  updateAccountUI();
+}
+
+function showAuthScreen(screen) {
+  if (!IS_ELECTRON) return;
+  document.querySelectorAll('.auth-screen, .auth-wall').forEach(s => s.classList.remove('active'));
+  document.getElementById(screen + '-screen').classList.add('active');
+  ['su-error','verify-error','li-error'].forEach(id => { const el = document.getElementById(id); if(el) el.textContent=''; });
+}
+
+function dismissAuth() {
+  document.querySelectorAll('.auth-screen, .auth-wall').forEach(s => s.classList.remove('active'));
+  pendingAuthAction = null;
+}
+
+function requireAuth(action) {
+  if (!IS_ELECTRON || plexUser) { if(action) action(); return; }
+  pendingAuthAction = action;
+  document.querySelectorAll('.auth-screen, .auth-wall').forEach(s => s.classList.remove('active'));
+  document.getElementById('auth-wall').classList.add('active');
+}
+
+// Code input helpers
+function codeInput(i) {
+  const val = document.getElementById('c'+i).value.replace(/\D/g,'');
+  document.getElementById('c'+i).value = val;
+  if (val && i < 5) document.getElementById('c'+(i+1)).focus();
+}
+function codeKey(e, i) {
+  if (e.key === 'Backspace' && !document.getElementById('c'+i).value && i > 0)
+    document.getElementById('c'+(i-1)).focus();
+}
+
+async function sendVerificationEmail(email, code) {
+  if (!window.emailjs || EMAILJS_PUBLIC_KEY === 'YOUR_PUBLIC_KEY') {
+    // EmailJS not configured — skip email, use code shown in toast for testing
+    toast('Dev mode: code is ' + code, 6000);
+    return;
+  }
+  emailjs.init(EMAILJS_PUBLIC_KEY);
+  await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, { to_email: email, code });
+}
+
+async function doSignup() {
+  const email = document.getElementById('su-email').value.trim().toLowerCase();
+  const password = document.getElementById('su-password').value;
+  const errEl = document.getElementById('su-error');
+  errEl.textContent = '';
+  if (!email || !password) { errEl.textContent = 'Enter your email and password'; return; }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { errEl.textContent = 'Enter a valid email address'; return; }
+  if (password.length < 6) { errEl.textContent = 'Password must be at least 6 characters'; return; }
+  const users = getPlexUsers();
+  if (users.find(u => u.email === email)) { errEl.textContent = 'An account with this email already exists'; return; }
+  const btn = document.querySelector('#signup-screen .auth-btn');
+  btn.textContent = 'Sending code…'; btn.disabled = true;
+  try {
+    const hash = await hashPassword(password);
+    const code = genCode();
+    pendingVerifyEmail = email;
+    pendingVerifyHash  = hash;
+    pendingVerifyCode  = code;
+    await sendVerificationEmail(email, code);
+    document.getElementById('verify-sub').textContent = 'We sent a 6-digit code to ' + email + '. Enter it below.';
+    [0,1,2,3,4,5].forEach(i => { document.getElementById('c'+i).value=''; });
+    document.getElementById('c0').focus();
+    showAuthScreen('verify');
+  } catch(e) { errEl.textContent = 'Could not send email — check your connection'; }
+  finally { btn.textContent = 'Create Account'; btn.disabled = false; }
+}
+
+async function doVerify() {
+  const entered = [0,1,2,3,4,5].map(i => document.getElementById('c'+i).value).join('');
+  const errEl = document.getElementById('verify-error');
+  errEl.textContent = '';
+  if (entered.length !== 6) { errEl.textContent = 'Enter all 6 digits'; return; }
+  if (entered !== pendingVerifyCode) { errEl.textContent = 'Incorrect code — try again'; return; }
+  const users = getPlexUsers();
+  users.push({ email: pendingVerifyEmail, hash: pendingVerifyHash, createdAt: new Date().toISOString() });
+  savePlexUsers(users);
+  saveSession(pendingVerifyEmail);
+  plexUser = { email: pendingVerifyEmail };
+  pendingVerifyCode = '';
+  dismissAuth(); updateAuthUI();
+  toast('Welcome to PLEX!');
+  if (pendingAuthAction) { pendingAuthAction(); pendingAuthAction = null; }
+}
+
+async function doResend() {
+  if (!pendingVerifyEmail) return;
+  pendingVerifyCode = genCode();
+  try {
+    await sendVerificationEmail(pendingVerifyEmail, pendingVerifyCode);
+    toast('New code sent!');
+  } catch { toast('Could not resend — check your connection'); }
+}
+
+async function doLogin() {
+  const email = document.getElementById('li-email').value.trim().toLowerCase();
+  const password = document.getElementById('li-password').value;
+  const errEl = document.getElementById('li-error');
+  errEl.textContent = '';
+  if (!email || !password) { errEl.textContent = 'Enter your email and password'; return; }
+  const btn = document.querySelector('#login-screen .auth-btn');
+  btn.textContent = 'Logging in…'; btn.disabled = true;
+  try {
+    const users = getPlexUsers();
+    const user = users.find(u => u.email === email);
+    if (!user) { errEl.textContent = 'No account found with this email'; return; }
+    const hash = await hashPassword(password);
+    if (hash !== user.hash) { errEl.textContent = 'Incorrect password'; return; }
+    saveSession(email);
+    plexUser = { email };
+    dismissAuth(); updateAuthUI();
+    toast('Welcome back!');
+    if (pendingAuthAction) { pendingAuthAction(); pendingAuthAction = null; }
+  } finally { btn.textContent = 'Log In'; btn.disabled = false; }
+}
+
+function plexLogout() {
+  clearSession(); plexUser = null; updateAuthUI();
+  toast('Logged out.');
+}
+
 // ===================== PRO =====================
-function showPro() {
+function showPro() { if (!IS_ELECTRON) return; requireAuth(showProModal); }
+function showProModal() {
+  if (!IS_ELECTRON) return;
   const isPro = DB.isPro;
   const annualPrice = '$99';
   const monthlyPrice = '$12';
@@ -1973,10 +3402,6 @@ function selectPlan(plan) {
   btn.textContent = isAnnual ? 'Subscribe Annual — $99/yr' : 'Subscribe Monthly — $12/mo';
   btn.onclick = () => subscribePro(isAnnual);
 }
-function autoGenSubtitles() {
-  if (!DB.isPro) { showPro(); return; }
-  toast('Attach an .srt subtitle file via Upload to enable subtitles');
-}
 let proAnnual = false;
 function subscribePro(annual) {
   proAnnual = !!annual;
@@ -2001,22 +3426,14 @@ function unsubscribePro() {
   toast('Subscription cancelled.');
 }
 function updateProUI() {
+  if (!IS_ELECTRON) { updateAISettingsUI(); return; }
+  updateAISettingsUI();
   const isPro = DB.isPro;
-  // settings row
   const sub = document.getElementById('pro-settings-sub');
   if (sub) sub.textContent = isPro ? (DB.proAnnual ? 'Active — Annual plan' : 'Active — Monthly plan') : 'Upgrade for $12/mo';
-  // pro badge: hide when pro (already have it), show as manage button
-  const badge = document.querySelector('.pro-badge');
-  if (badge) {
-    badge.innerHTML = isPro
-      ? '<span data-icon="star" data-sz="14"></span> PRO'
-      : '<span data-icon="star" data-sz="14"></span> PRO';
-    renderIcons(badge);
-  }
-  // autosub chip star icon
+  updateAccountUI();
   const autosubIcon = document.getElementById('autosub-pro-icon');
   if (autosubIcon) { autosubIcon.style.display = isPro ? 'none' : ''; }
-  // lyrics pro line
   const lyricsLine = document.getElementById('lyrics-pro-line');
   if (lyricsLine) lyricsLine.style.display = isPro ? 'none' : '';
 }
@@ -2045,6 +3462,77 @@ function showConfirm(title, msg, onYes, yesLabel) {
   showModal('confirm-modal');
 }
 
+// ===================== RECENTLY DELETED =====================
+function restoreAllTrash() {
+  if (!DB.trash.length) return;
+  DB.trash.forEach(f => {
+    const {deletedAt, ...restored} = f;
+    DB.files.push(restored);
+  });
+  DB.trash = [];
+  save(); renderFileList(); refreshBrowseCounts(); refreshStorageBar(); toast('All files restored.');
+}
+
+// ===================== UPLOAD TRAY =====================
+function toggleUploadTray() {
+  uploadTrayOpen = !uploadTrayOpen;
+  const panel = document.getElementById('upload-tray-panel');
+  if (panel) {
+    panel.style.display = 'block';
+    requestAnimationFrame(() => panel.classList.toggle('open', uploadTrayOpen));
+  }
+}
+function updateUploadTray() {
+  const fab = document.getElementById('upload-tray-fab');
+  const list = document.getElementById('upload-tray-list');
+  const badge = document.getElementById('upload-tray-badge');
+  const active = uploadQueue.filter(u => !u.done);
+  if (fab) { fab.style.display = active.length ? 'flex' : 'none'; renderIcons(fab); }
+  if (badge) badge.textContent = active.length;
+  if (list) {
+    list.innerHTML = uploadQueue.slice(-20).reverse().map(u => `
+      <div class="upload-entry">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+          <div class="upload-entry-name" style="flex:1">${escHtml(u.name)}</div>
+          ${!u.done ? `<button onclick="cancelUpload('${u.id}')" style="flex-shrink:0;background:none;border:none;color:var(--text2);font-size:18px;line-height:1;cursor:pointer;padding:0 2px" title="Cancel">×</button>` : ''}
+        </div>
+        <div class="upload-entry-meta">${formatBytes(u.size)} · ${u.section}${u.cancelled ? ' · Cancelled' : u.done ? ' · ✓ Done' : u.eta ? ' · ~'+u.eta+' left' : ''}</div>
+        <div class="upload-pb-track"><div class="upload-pb-fill" style="width:${u.progress||0}%;${u.cancelled?'background:var(--text2)':''}"></div></div>
+      </div>`).join('');
+  }
+}
+function cancelUpload(id) {
+  const q = uploadQueue.find(u => u.id === id);
+  if (q && !q.done && q.reader) { q.cancelled = true; q.reader.abort(); }
+}
+
+// ===================== TAGS =====================
+function openTagModal(fileId) {
+  currentTagFileId = fileId;
+  const fileTags = DB.fileTags[fileId] || [];
+  document.getElementById('tag-picker-list').innerHTML = DB.tags.map(tag => {
+    const active = fileTags.includes(tag.id);
+    return `<div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);cursor:pointer" onclick="toggleFileTag('${tag.id}')">
+      <div style="width:18px;height:18px;border-radius:50%;background:${tag.color};flex-shrink:0;${active?'box-shadow:0 0 0 2px white,0 0 0 4px '+tag.color:''}"></div>
+      <span style="font-size:15px;font-weight:500;flex:1">${tag.name}</span>
+      ${active ? '<span data-icon="check" data-sz="16" style="color:var(--purple)"></span>' : ''}
+    </div>`;
+  }).join('');
+  renderIcons(document.getElementById('tag-picker-list'));
+  showModal('tag-modal');
+}
+function toggleFileTag(tagId) {
+  const id = currentTagFileId;
+  if (!DB.fileTags[id]) DB.fileTags[id] = [];
+  if (DB.fileTags[id].includes(tagId)) DB.fileTags[id] = DB.fileTags[id].filter(t=>t!==tagId);
+  else DB.fileTags[id].push(tagId);
+  save(); openTagModal(id); renderFileList(); refreshBrowseCounts();
+}
+
+// ===================== IMAGE SWIPE =====================
+// (handled inline in openEbook)
+
+
 // ===================== INIT =====================
 (async function init() {
   renderIcons(document);
@@ -2058,7 +3546,33 @@ function showConfirm(title, msg, onYes, yesLabel) {
   syncChips();
   refreshBrowseCounts();
   refreshStorageBar();
-  updateProUI();
+  if (IS_ELECTRON) { updateProUI(); }
+  checkAuth();
+  if (!IS_ELECTRON) {
+    // Portable HTML — hide Pro, AI, auth, generate home screen icon
+    ['pro-account-row','pro-settings-row','pro-settings-section','ai-settings-section','autosub-chip','lyrics-ai-btn','ebook-ai-btn'].forEach(id => {
+      const el = document.getElementById(id); if (el) el.style.display = 'none';
+    });
+    const btn = document.getElementById('account-home-btn');
+    if (btn) btn.style.display = 'none';
+    // Generate apple-touch-icon (purple PLEX logo) for iOS home screen
+    try {
+      const c = document.createElement('canvas'); c.width = c.height = 180;
+      const ctx = c.getContext('2d');
+      const r = 38, w = 180;
+      ctx.fillStyle = '#7c3aed';
+      ctx.beginPath();
+      ctx.moveTo(r,0); ctx.lineTo(w-r,0); ctx.quadraticCurveTo(w,0,w,r);
+      ctx.lineTo(w,w-r); ctx.quadraticCurveTo(w,w,w-r,w);
+      ctx.lineTo(r,w); ctx.quadraticCurveTo(0,w,0,w-r);
+      ctx.lineTo(0,r); ctx.quadraticCurveTo(0,0,r,0); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.moveTo(63,44); ctx.lineTo(63,136); ctx.lineTo(136,90); ctx.closePath(); ctx.fill();
+      const link = document.createElement('link');
+      link.rel = 'apple-touch-icon'; link.href = c.toDataURL('image/png');
+      document.head.appendChild(link);
+    } catch(_) {}
+  }
 })();
 </script>
 
@@ -2075,20 +3589,94 @@ function showConfirm(title, msg, onYes, yesLabel) {
     <span class="nav-title">Unsupported Formats</span>
   </div>
   <div style="padding:16px 20px;overflow-y:auto;flex:1;padding-bottom:40px">
-    <p style="font-size:13px;color:var(--text2);margin-bottom:20px;line-height:1.6">These formats are stored and downloadable in PLEX but cannot be previewed in the browser.</p>
-    <div class="settings-label">Video (needs native codecs)</div>
-    <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:16px;font-size:12px;line-height:2;color:var(--text2)">AVI &middot; WMV &middot; FLV &middot; RM &middot; RMVB &middot; ASF &middot; VOB &middot; DV &middot; MXF &middot; DRC &middot; ROQ &middot; YUV &middot; AMV &middot; NSV &middot; QT &middot; BIK &middot; HEVC &middot; H264 &middot; H265</div>
-    <div class="settings-label">Camera RAW Images</div>
+    <p style="font-size:13px;color:var(--text2);margin-bottom:20px;line-height:1.6">These formats are stored and downloadable in PLEX but cannot be previewed. The desktop app (DMG) supports significantly more formats than the browser version.</p>
+
+    <div class="settings-label">Video — browser (HTML) only</div>
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:6px;font-size:12px;line-height:2;color:var(--text2)">MKV &middot; AVI &middot; MOV &middot; TS &middot; MTS &middot; M2TS &middot; MPEG &middot; MPG &middot; 3G2 &middot; DIVX &middot; XVID &middot; VOB &middot; DV &middot; MXF &middot; H264 &middot; H265 &middot; HEVC &middot; WMV &middot; FLV &middot; RM &middot; RMVB &middot; ASF &middot; DRC &middot; ROQ &middot; YUV &middot; AMV &middot; NSV &middot; QT &middot; BIK &middot; F4V</div>
+    <div style="background:rgba(52,211,153,0.07);border:1px solid rgba(52,211,153,0.2);border-radius:10px;padding:10px 14px;margin-bottom:16px;font-size:11px;color:var(--green);line-height:1.7">
+      ✓ Desktop app plays: MKV, AVI, MOV, TS/MTS/M2TS, MPEG, 3G2, DIVX, XVID, VOB, DV, H264/H265<br>
+      ✗ Not supported on any platform: WMV, FLV, RM/RMVB, ROQ, BIK, NSV, YUV, ASF
+    </div>
+
+    <div class="settings-label">Audio — browser (HTML) only</div>
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:6px;font-size:12px;line-height:2;color:var(--text2)">AIFF &middot; AIF &middot; WMA &middot; AMR &middot; AU &middot; RA &middot; CAF &middot; APE &middot; WV &middot; AC3 &middot; DTS &middot; PCM &middot; TTA &middot; VOC &middot; GSM &middot; SPX</div>
+    <div style="background:rgba(52,211,153,0.07);border:1px solid rgba(52,211,153,0.2);border-radius:10px;padding:10px 14px;margin-bottom:16px;font-size:11px;color:var(--green);line-height:1.7">
+      ✓ Desktop app plays: AIFF, AIF, ALAC, CAF, APE, WV, AMR, AU<br>
+      ✗ Not supported on any platform: WMA, AC3, DTS, TTA, VOC, GSM, SPX
+    </div>
+
+    <div class="settings-label">Camera RAW Images (all platforms)</div>
     <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:16px;font-size:12px;line-height:2;color:var(--text2)">RAW &middot; DNG &middot; CR2 &middot; CR3 &middot; NEF &middot; ARW &middot; ORF &middot; RW2 &middot; RAF &middot; SR2 &middot; PEF &middot; X3F &middot; JXR &middot; JP2 &middot; J2K &middot; PSD &middot; AI &middot; EPS</div>
-    <div class="settings-label">Audio (non-standard codecs)</div>
-    <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:16px;font-size:12px;line-height:2;color:var(--text2)">WMA &middot; AMR &middot; AU &middot; RA &middot; CAF &middot; AC3 &middot; DTS &middot; PCM &middot; TTA &middot; VOC &middot; GSM &middot; SPX</div>
-    <div class="settings-label">DAW Project Files</div>
-    <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:16px;font-size:12px;line-height:2;color:var(--text2)">ALS &middot; FLP &middot; LOGICX &middot; PTX &middot; BAND &middot; CPR &middot; RPP</div>
+
+    <div class="settings-label">DAW Project Files (all platforms)</div>
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:16px;font-size:12px;line-height:2;color:var(--text2)">ALS &middot; FLP &middot; LOGICX &middot; PTX &middot; BAND &middot; CPR &middot; RPP &middot; MID &middot; MIDI<div style="margin-top:6px;font-size:11px">These are project files, not audio — open in their respective DAW.</div></div>
+
     <div class="settings-label">Comics (RAR/7z/TAR-based)</div>
     <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:16px;font-size:12px;line-height:2;color:var(--text2)">CBR &middot; CB7 &middot; CBT
       <div style="margin-top:6px;font-size:11px">Convert to CBZ using The Unarchiver (free, Mac App Store) &mdash; CBZ opens natively.</div></div>
+
     <div class="settings-label">eBooks (proprietary)</div>
     <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:16px;font-size:12px;line-height:2;color:var(--text2)">MOBI &middot; AZW &middot; AZW3 &middot; KFX &middot; DJVU &middot; LIT &middot; PDB &middot; PRC &middot; IBOOKS &middot; OPF &middot; OXPS &middot; XPS &middot; TCR &middot; TR2 &middot; RB &middot; LRF &middot; PML &middot; ZBOOK &middot; ZTXT &middot; EBK</div>
+  </div>
+</div>
+
+<!-- AUTH WALL -->
+<div id="auth-wall" class="auth-wall">
+  <div style="font-size:40px;margin-bottom:4px">🔒</div>
+  <div style="font-size:20px;font-weight:900;color:var(--text)">Sign up required</div>
+  <div style="font-size:14px;color:var(--text2);max-width:280px;line-height:1.6">Create a free account to upload and access your files.</div>
+  <button class="auth-btn" style="max-width:280px;margin-top:8px" onclick="showAuthScreen('signup')">Create Account</button>
+  <div class="auth-link" onclick="showAuthScreen('login')">Already have an account? <b>Log in</b></div>
+</div>
+
+<!-- SIGN UP -->
+<div id="signup-screen" class="auth-screen">
+  <div class="auth-box">
+    <div class="auth-logo">PLEX</div>
+    <div class="auth-title">Create account</div>
+    <div class="auth-sub">Your personal media universe.<br>Files stay on your device.</div>
+    <input class="auth-input" id="su-email" type="email" placeholder="Email address" autocomplete="email">
+    <input class="auth-input" id="su-password" type="password" placeholder="Password (min 8 characters)" autocomplete="new-password">
+    <div class="auth-error" id="su-error"></div>
+    <button class="auth-btn" onclick="doSignup()">Create Account</button>
+    <div class="auth-link" onclick="showAuthScreen('login')">Already have an account? <b>Log in</b></div>
+    <div class="auth-link" style="font-size:11px;color:var(--border)" onclick="dismissAuth()">← Back</div>
+  </div>
+</div>
+
+
+<!-- VERIFY EMAIL -->
+<div id="verify-screen" class="auth-screen">
+  <div class="auth-box">
+    <div class="auth-logo">PLEX</div>
+    <div class="auth-title">Check your email</div>
+    <div class="auth-sub" id="verify-sub">We sent a 6-digit code to your email.</div>
+    <div class="code-inputs">
+      <input class="code-input" id="c0" maxlength="1" oninput="codeInput(0)" onkeydown="codeKey(event,0)">
+      <input class="code-input" id="c1" maxlength="1" oninput="codeInput(1)" onkeydown="codeKey(event,1)">
+      <input class="code-input" id="c2" maxlength="1" oninput="codeInput(2)" onkeydown="codeKey(event,2)">
+      <input class="code-input" id="c3" maxlength="1" oninput="codeInput(3)" onkeydown="codeKey(event,3)">
+      <input class="code-input" id="c4" maxlength="1" oninput="codeInput(4)" onkeydown="codeKey(event,4)">
+      <input class="code-input" id="c5" maxlength="1" oninput="codeInput(5)" onkeydown="codeKey(event,5)">
+    </div>
+    <div class="auth-error" id="verify-error"></div>
+    <button class="auth-btn" onclick="doVerify()">Verify</button>
+    <div class="auth-link" onclick="doResend()">Didn't get it? <b>Resend code</b></div>
+    <div class="auth-link" onclick="showAuthScreen('signup')">← Back</div>
+  </div>
+</div>
+
+<!-- LOG IN -->
+<div id="login-screen" class="auth-screen">
+  <div class="auth-box">
+    <div class="auth-logo">PLEX</div>
+    <div class="auth-title">Welcome back</div>
+    <input class="auth-input" id="li-email" type="email" placeholder="Email address" autocomplete="email">
+    <input class="auth-input" id="li-password" type="password" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+    <div class="auth-error" id="li-error"></div>
+    <button class="auth-btn" onclick="doLogin()">Log In</button>
+    <div class="auth-link" onclick="showAuthScreen('signup')">Don't have an account? <b>Sign up</b></div>
+    <div class="auth-link" style="font-size:11px;color:var(--border)" onclick="dismissAuth()">← Back</div>
   </div>
 </div>
 </body>
