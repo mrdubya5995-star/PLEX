@@ -2931,19 +2931,26 @@ function showFileInfo(f) {
 
 // ===================== MOVE =====================
 function showMoveModal() {
-  if (!ctxTarget || ctxIsFolder) { toast('Only files can be moved'); return; }
-  const section = ctxTarget.section;
-  const folders = DB.folders.filter(f => f.section === section);
-  let html = `<div class="move-item bloom" onclick="doMove(null)"><span data-icon="folder" data-sz="22"></span><div style="font-size:14px;font-weight:600">${section.replace(/^./,c=>c.toUpperCase())} (root)</div></div>`;
+  if (!ctxTarget) return;
+  const section = ctxIsFolder ? ctxTarget.section : ctxTarget.section;
+  // Exclude the folder being moved itself so it can't be moved into itself
+  const folders = DB.folders.filter(f => f.section === section && f.id !== ctxTarget.id);
+  const sectionLabel = section.replace(/^./, c => c.toUpperCase());
+  let html = `<div class="move-item bloom" onclick="doMove(null)"><span data-icon="folder" data-sz="22"></span><div style="font-size:14px;font-weight:600">${sectionLabel} (root)</div></div>`;
   folders.forEach(f => { html += `<div class="move-item bloom" onclick="doMove('${f.id}')"><span data-icon="folder" data-sz="22"></span><div style="font-size:14px;font-weight:600">${f.name}</div></div>`; });
   document.getElementById('move-destinations').innerHTML = html;
   renderIcons(document.getElementById('move-destinations'));
   showModal('move-modal');
 }
 function doMove(folderId) {
-  const f = DB.files.find(x=>x.id===ctxTarget.id);
-  if (f) { f.folderId = folderId; save(); }
-  closeModal('move-modal'); renderFileList(); toast('Moved!');
+  if (ctxIsFolder) {
+    const f = DB.folders.find(x => x.id === ctxTarget.id);
+    if (f) { f.parentId = folderId; save(); }
+  } else {
+    const f = DB.files.find(x => x.id === ctxTarget.id);
+    if (f) { f.folderId = folderId; save(); }
+  }
+  closeModal('move-modal'); renderFileList(); refreshBrowseCounts(); toast('Moved!');
 }
 
 // ===================== STORAGE =====================
