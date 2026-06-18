@@ -1678,8 +1678,8 @@ async function transcodeAndPlay(f, videoEl, fallbackEl) {
     : 'Use the PLEX desktop app, or convert to MP4 first.';
   fallbackEl.innerHTML = `<div style="text-align:center;padding:40px 20px;color:var(--text2)">
     ${buildIcon('film',48,false)}
-    <p style="margin:16px 0 6px;font-size:16px;font-weight:900;color:var(--text)">${f.ext.toUpperCase()} Not Supported</p>
-    <p style="font-size:13px;margin-bottom:4px">Can't decode <b style="color:var(--text)">${f.ext.toUpperCase()}</b> video.</p>
+    <p style="margin:16px 0 6px;font-size:16px;font-weight:900;color:var(--text)">${(f.ext||'').toUpperCase()} Not Supported</p>
+    <p style="font-size:13px;margin-bottom:4px">Can't decode <b style="color:var(--text)">${(f.ext||'').toUpperCase()}</b> video.</p>
     <p style="font-size:12px;margin-bottom:24px;color:var(--text2)">${hint}</p>
     <a href="${dlUrl}" download="${escHtml(f.name)}" class="btn-full" style="display:inline-block;text-decoration:none;padding:13px 24px;max-width:260px">Download — Open in VLC</a>
   </div>`;
@@ -1727,6 +1727,7 @@ function openFile(id) {
 
 // ===================== MEDIA PLAYER =====================
 async function openMediaPlayer(f) {
+  if (!f) return;
   currentMediaFile = f;
   const activeScreen = document.querySelector('.screen.active');
   if (activeScreen && activeScreen.id !== 'player-screen') playerPrevScreen = activeScreen.id;
@@ -1748,12 +1749,12 @@ async function openMediaPlayer(f) {
       fallback.innerHTML = `<div style="text-align:center;padding:40px 20px;color:var(--text2)">
         ${buildIcon('image',56,false)}
         <p style="margin:20px 0 6px;font-size:18px;font-weight:900;color:var(--text)">Unsupported File Type</p>
-        <p style="font-size:14px;margin-bottom:6px">Sorry, PLEX does not support <b style="color:var(--text)">${f.ext.toUpperCase()}</b> image files.</p>
+        <p style="font-size:14px;margin-bottom:6px">Sorry, PLEX does not support <b style="color:var(--text)">${(f.ext||'').toUpperCase()}</b> image files.</p>
         <p style="font-size:12px;margin-bottom:24px">Download it and open in a compatible image viewer.</p>
-        <a href="${url}" download="${escHtml(f.name)}" class="btn-full" style="display:inline-block;text-decoration:none;padding:13px 24px;max-width:260px">Download ${f.ext.toUpperCase()}</a>
+        <a href="${url}" download="${escHtml(f.name)}" class="btn-full" style="display:inline-block;text-decoration:none;padding:13px 24px;max-width:260px">Download ${(f.ext||'').toUpperCase()}</a>
       </div>`;
     };
-    document.getElementById('player-subtitle-label').textContent = f.ext.toUpperCase() + ' image';
+    document.getElementById('player-subtitle-label').textContent = (f.ext||'').toUpperCase() + ' image';
     document.getElementById('sub-btn').style.display = 'none';
   } else if (isVideo(f)) {
     const unsupSet = IS_ELECTRON ? ELECTRON_UNSUPPORTED_VIDEO : HTML_UNSUPPORTED_VIDEO;
@@ -1853,7 +1854,7 @@ async function openAudioPlayer(f) {
     toast('Can\'t play ' + (f.ext||'').toUpperCase() + ' — save it and open in a compatible player');
   };
   document.getElementById('music-title').textContent = f.name.replace(/\.[^.]+$/,'');
-  document.getElementById('music-artist').textContent = f.ext.toUpperCase();
+  document.getElementById('music-artist').textContent = (f.ext||'').toUpperCase();
   document.getElementById('audio-nav-title').textContent = f.name;
   musicSiblings = DB.files.filter(x => x.section==='audio' && x.folderId===f.folderId);
   currentMusicIndex = musicSiblings.findIndex(x => x.id === f.id);
@@ -1909,7 +1910,7 @@ function renderMusicQueue(){
   q.innerHTML = '<div class="queue-head">Queue</div><div class="queue-wrap">' + musicSiblings.map((f,i)=>`
     <div class="queue-item ${i===currentMusicIndex?'playing':''}" onclick="openAudioPlayer(musicSiblings[${i}])">
       <div class="queue-num">${i===currentMusicIndex?'<span data-icon=play data-sz=12 data-fill=1></span>':i+1}</div>
-      <div class="queue-name">${f.name.replace(/\.[^.]+$/,'')}</div><div class="queue-dur">${f.ext.toUpperCase()}</div></div>`).join('') + '</div>';
+      <div class="queue-name">${f.name.replace(/\.[^.]+$/,'')}</div><div class="queue-dur">${(f.ext||'').toUpperCase()}</div></div>`).join('') + '</div>';
   renderIcons(q);
 }
 
@@ -1964,10 +1965,14 @@ async function openEbook(f) {
             const oldUrl = oldImg.src;
             if (activeURLs.includes(oldUrl)) { URL.revokeObjectURL(oldUrl); activeURLs.splice(activeURLs.indexOf(oldUrl),1); }
           }
+          if (!b) return;
+          const imgEl = content.querySelector('.img-swipe-wrap img');
+          if (!imgEl) return;
           const u = URL.createObjectURL(b); activeURLs.push(u);
-          content.querySelector('.img-swipe-wrap img').src = u;
+          imgEl.src = u;
         });
-        content.querySelector('.img-swipe-counter').textContent = (index+1) + ' / ' + siblings.length;
+        const ctr = content.querySelector('.img-swipe-counter');
+        if (ctr) ctr.textContent = (index+1) + ' / ' + siblings.length;
       }
 
       let touchStartX = 0;
@@ -2706,6 +2711,7 @@ function attachSwipeDelete(root) {
     const id = el.dataset.id;
     const row = document.createElement('div');
     row.className = 'swipe-row';
+    if (!el.parentNode) return;
     el.parentNode.insertBefore(row, el);
     // Button goes in FIRST (lower in paint order), file item SECOND (paints on top, covering button)
     const btn = document.createElement('button');
@@ -2901,6 +2907,7 @@ async function ctxAction(action) {
   }
 }
 function doRename() {
+  if (!ctxTarget) return;
   const name = document.getElementById('rename-input').value.trim();
   if (!name) { toast('Enter a name'); return; }
   const coll = ctxIsFolder ? DB.folders : DB.files;
