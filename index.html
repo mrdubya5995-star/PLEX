@@ -1341,7 +1341,7 @@ function refreshBrowseCounts() {
   const stale = (DB.recentlyViewed || []).some(v => !validIds.has(v.id));
   if (stale) { DB.recentlyViewed = (DB.recentlyViewed || []).filter(v => validIds.has(v.id)); save(); }
 
-  const recent = [...DB.files].sort((a,b) => b.dateAdded.localeCompare(a.dateAdded)).slice(0,5);
+  const recent = [...DB.files].sort((a,b) => (b.dateAdded||'').localeCompare(a.dateAdded||'')).slice(0,5);
   const rl = document.getElementById('recent-list');
   if (!recent.length) { rl.innerHTML = '<div style="color:var(--text2);font-size:13px;text-align:center;padding:20px">No files yet. Press Upload to start.</div>'; return; }
   rl.innerHTML = recent.map(f => {
@@ -2168,15 +2168,19 @@ async function cbzToThumb(blob) {
 async function pdfToThumb(blob) {
   if (!window.pdfjsLib) return null;
   const url = URL.createObjectURL(blob);
+  let pdf;
   try {
-    const pdf = await pdfjsLib.getDocument(url).promise;
+    pdf = await pdfjsLib.getDocument({ url }).promise;
     const page = await pdf.getPage(1);
     const vp = page.getViewport({ scale: 80 / page.getViewport({ scale: 1 }).width });
     const c = document.createElement('canvas'); c.width = 80; c.height = Math.round(vp.height);
-    await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
-    URL.revokeObjectURL(url);
+    const ctx = c.getContext('2d');
+    if (!ctx) return null;
+    await page.render({ canvasContext: ctx, viewport: vp }).promise;
+    page.cleanup();
     return new Promise(resolve => c.toBlob(resolve, 'image/jpeg', 0.75));
-  } catch(e) { URL.revokeObjectURL(url); return null; }
+  } catch(e) { return null; }
+  finally { if (pdf) pdf.destroy(); URL.revokeObjectURL(url); }
 }
 async function generateThumb(f, blob) {
   const ext = (f.ext || '').toLowerCase();
@@ -2196,23 +2200,25 @@ let _thumbGen = 0;
 async function loadThumbs(container) {
   const gen = ++_thumbGen;
   for (const el of container.querySelectorAll('[data-id]')) {
-    if (_thumbGen !== gen) return; // a newer render started — abort this pass
+    if (_thumbGen !== gen) return;
     const id = el.dataset.id;
     const f = DB.files.find(x => x.id === id);
     if (!f || f.section === 'audio') continue;
-    const thumbBlob = await idbGet('thumb_' + id);
-    if (_thumbGen !== gen) return;
-    if (!thumbBlob) continue;
-    const thumb = el.querySelector('.file-thumb');
-    if (!thumb || thumb.querySelector('img')) continue;
-    const url = URL.createObjectURL(thumbBlob);
-    const img = new Image();
-    img.onload = () => URL.revokeObjectURL(url);
-    img.onerror = () => URL.revokeObjectURL(url);
-    img.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block;';
-    img.src = url;
-    thumb.innerHTML = '';
-    thumb.appendChild(img);
+    try {
+      const thumbBlob = await idbGet('thumb_' + id);
+      if (_thumbGen !== gen) return;
+      if (!thumbBlob) continue;
+      const thumb = el.querySelector('.file-thumb');
+      if (!thumb || thumb.querySelector('img')) continue;
+      const url = URL.createObjectURL(thumbBlob);
+      const img = new Image();
+      img.onload = () => URL.revokeObjectURL(url);
+      img.onerror = () => URL.revokeObjectURL(url);
+      img.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block;';
+      img.src = url;
+      thumb.innerHTML = '';
+      thumb.appendChild(img);
+    } catch(e) { /* IDB read failed — skip thumbnail for this item */ }
   }
 }
 
@@ -2568,61 +2574,124 @@ async function renderODT(blob, container) {
 }
 
 async function renderPDF(blob, container) {
-  const buf = await blob.arrayBuffer();
-  const pdf = await pdfjsLib.getDocument({data: buf}).promise;
+  // Use a blob URL — lets PDF.js stream directly without copying the whole file into the JS heap.
+  // The old blob.arrayBuffer() approach doubled peak memory usage.
+  const blobUrl = URL.createObjectURL(blob);
+  activeURLs.push(blobUrl);
+  let pdf;
+  try {
+    pdf = await pdfjsLib.getDocument({ url: blobUrl }).promise;
+  } catch(e) {
+    activeURLs.splice(activeURLs.indexOf(blobUrl), 1);
+    URL.revokeObjectURL(blobUrl);
+    throw e;
+  }
+
   container.innerHTML = '';
-  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  // Cap DPR at 1.5 — looks sharp, uses ~44% less canvas memory than capping at 2
+  const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+  const SCALE = 1.0;
   const total = pdf.numPages;
 
-  // Create placeholder divs for all pages — render lazily as user scrolls
-  const wrappers = [];
-  for (let p = 1; p <= total; p++) {
+  const mkPh = (p) => {
     const div = document.createElement('div');
     div.dataset.page = String(p);
     div.style.cssText = 'width:100%;max-width:680px;margin:0 auto 12px;aspect-ratio:0.77;background:var(--bg3);border-radius:6px;';
-    container.appendChild(div);
-    wrappers.push(div);
+    return div;
+  };
+
+  // All pages start as placeholder divs — replaced with canvas on demand
+  const wrappers = [];
+  for (let p = 1; p <= total; p++) {
+    const ph = mkPh(p);
+    container.appendChild(ph);
+    wrappers.push(ph);
   }
 
-  // Sequential render queue — PDF.js can only render one page at a time
-  const queue = [];
+  // Sequential render queue — PDF.js processes one page at a time
   let rendering = false;
+  const queue = [];
+  const inFlight = new Set();
+  let renderObs, evictObs;
+
   const drain = async () => {
     if (rendering) return;
     rendering = true;
     while (queue.length) {
-      const { p, wrapper } = queue.shift();
-      if (!wrapper.parentNode) continue;
+      const p = queue.shift();
+      const el = wrappers[p - 1];
+      if (!el || !el.parentNode || el.tagName === 'CANVAS') { inFlight.delete(p); continue; }
       try {
         const page = await pdf.getPage(p);
-        const viewport = page.getViewport({ scale: 1.5 });
+        const vp = page.getViewport({ scale: SCALE });
         const canvas = document.createElement('canvas');
-        canvas.width = viewport.width * dpr; canvas.height = viewport.height * dpr;
+        canvas.width = Math.round(vp.width * dpr);
+        canvas.height = Math.round(vp.height * dpr);
         canvas.style.cssText = 'width:100%;max-width:680px;display:block;border-radius:6px;';
-        const ctx = canvas.getContext('2d'); ctx.scale(dpr, dpr);
-        await page.render({ canvasContext: ctx, viewport }).promise;
-        if (wrapper.parentNode) wrapper.replaceWith(canvas);
+        canvas.dataset.page = String(p);
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.scale(dpr, dpr);
+          await page.render({ canvasContext: ctx, viewport: vp }).promise;
+          if (el.parentNode) {
+            el.replaceWith(canvas);
+            wrappers[p - 1] = canvas;
+            if (evictObs) evictObs.observe(canvas);
+          }
+        } else {
+          // Canvas context unavailable — device under memory pressure
+          el.style.background = 'var(--bg3)';
+        }
+        page.cleanup();
       } catch(_) {}
+      inFlight.delete(p);
     }
     rendering = false;
   };
-  const enqueuePage = (p, wrapper) => { queue.push({ p, wrapper }); drain(); };
 
-  // Render first page immediately
-  enqueuePage(1, wrappers[0]);
+  const enqueuePage = (p) => {
+    if (p < 1 || p > total || inFlight.has(p)) return;
+    const el = wrappers[p - 1];
+    if (!el || el.tagName === 'CANVAS') return;
+    inFlight.add(p);
+    queue.push(p);
+    drain();
+  };
 
-  if (total > 1 && 'IntersectionObserver' in window) {
-    const obs = new IntersectionObserver(entries => {
+  // Evict a canvas back to a placeholder to free GPU + CPU memory
+  const evict = (canvas) => {
+    const p = parseInt(canvas.dataset.page);
+    if (!canvas.parentNode || isNaN(p)) return;
+    const ph = mkPh(p);
+    canvas.replaceWith(ph);
+    wrappers[p - 1] = ph;
+    inFlight.delete(p);
+    if (renderObs) renderObs.observe(ph);
+  };
+
+  // Render first two pages immediately so the user sees content right away
+  enqueuePage(1);
+  if (total > 1) enqueuePage(2);
+
+  if ('IntersectionObserver' in window) {
+    // Render: fire when placeholder is within 800px of viewport
+    renderObs = new IntersectionObserver(entries => {
       entries.forEach(e => {
         if (!e.isIntersecting) return;
         const p = parseInt(e.target.dataset.page);
-        obs.unobserve(e.target);
-        if (!isNaN(p)) enqueuePage(p, e.target);
+        if (!isNaN(p)) { enqueuePage(p); enqueuePage(p + 1); }
       });
-    }, { rootMargin: '400px' });
-    for (let i = 1; i < total; i++) obs.observe(wrappers[i]);
-  } else {
-    for (let p = 2; p <= total; p++) enqueuePage(p, wrappers[p-1]);
+    }, { rootMargin: '800px' });
+
+    // Evict: fire when canvas moves more than 1500px away from viewport
+    // Frees memory for pages the user has scrolled past
+    evictObs = new IntersectionObserver(entries => {
+      entries.forEach(e => {
+        if (!e.isIntersecting && e.target.tagName === 'CANVAS') evict(e.target);
+      });
+    }, { rootMargin: '1500px' });
+
+    for (let i = 2; i < total; i++) renderObs.observe(wrappers[i]);
   }
 }
 function updateEbookProgress() {
@@ -2682,7 +2751,7 @@ function addBookmark() {
 function showEbookInfo(){ if(ebookCurrentFile) showFileInfo(ebookCurrentFile); }
 function toggleEbookMenu(){ const tb=document.getElementById('ebook-toolbar'); tb.style.display = tb.style.display==='none'?'flex':'none'; }
 function closeEbook(){ if(window.speechSynthesis) speechSynthesis.cancel(); revokeURLs(); showScreen(ebookPrevScreen); }
-function escHtml(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function escHtml(s){ return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 // ===================== CONTEXT MENU (long-press) =====================
 let ctxTarget = null, ctxIsFolder = false;
