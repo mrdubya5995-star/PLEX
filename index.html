@@ -1534,10 +1534,13 @@ function bulkMove() {
   const folderIds = [...selectedItems].filter(id => id.startsWith('f:')).map(id => id.slice(2));
   // Build destination list: root + all folders in section, excluding selected folders themselves
   const folders = DB.folders.filter(f => f.section === currentSection && !folderIds.includes(f.id));
-  const sectionLabel = currentSection.replace(/^./, c => c.toUpperCase());
-  let html = `<div class="move-item bloom" onclick="doBulkMove(null)"><span data-icon="folder" data-sz="22"></span><div style="font-size:14px;font-weight:600">${sectionLabel} (root)</div></div>`;
+  const _labels = {media:'Media', audio:'Audio', ebook:'eBooks', favorites:'Favorites'};
+  const sectionLabel = _labels[currentSection] || currentSection.replace(/^./, c => c.toUpperCase());
+  const titleEl = document.querySelector('#move-modal .modal-title');
+  if (titleEl) titleEl.textContent = 'Move to ' + sectionLabel + '…';
+  let html = `<div class="move-item bloom" onclick="doBulkMove(null)"><span data-icon="folder" data-sz="22"></span><div style="font-size:14px;font-weight:600">${sectionLabel} (top level)</div></div>`;
   folders.forEach(f => {
-    html += `<div class="move-item bloom" onclick="doBulkMove('${f.id}')"><span data-icon="folder" data-sz="22"></span><div style="font-size:14px;font-weight:600">${f.name}</div></div>`;
+    html += `<div class="move-item bloom" onclick="doBulkMove('${f.id}')"><span data-icon="folder" data-sz="22"></span><div style="font-size:14px;font-weight:600">${escHtml(f.name)}</div></div>`;
   });
   document.getElementById('move-destinations').innerHTML = html;
   renderIcons(document.getElementById('move-destinations'));
@@ -3002,12 +3005,31 @@ function showFileInfo(f) {
 // ===================== MOVE =====================
 function showMoveModal() {
   if (!ctxTarget) return;
-  const section = ctxIsFolder ? ctxTarget.section : ctxTarget.section;
-  // Exclude the folder being moved itself so it can't be moved into itself
-  const folders = DB.folders.filter(f => f.section === section && f.id !== ctxTarget.id);
-  const sectionLabel = section.replace(/^./, c => c.toUpperCase());
-  let html = `<div class="move-item bloom" onclick="doMove(null)"><span data-icon="folder" data-sz="22"></span><div style="font-size:14px;font-weight:600">${sectionLabel} (root)</div></div>`;
-  folders.forEach(f => { html += `<div class="move-item bloom" onclick="doMove('${f.id}')"><span data-icon="folder" data-sz="22"></span><div style="font-size:14px;font-weight:600">${f.name}</div></div>`; });
+  const section = ctxTarget.section;
+  const labels = {media:'Media', audio:'Audio', ebook:'eBooks', favorites:'Favorites'};
+  const sectionLabel = labels[section] || (section||'').replace(/^./, c => c.toUpperCase());
+
+  // When moving a folder, exclude itself AND all its descendants
+  // to prevent creating a broken cycle (e.g. moving A into A's child B)
+  const excludeIds = new Set([ctxTarget.id]);
+  if (ctxIsFolder) {
+    const collectDescendants = (parentId) => {
+      DB.folders.filter(f => f.parentId === parentId).forEach(f => {
+        excludeIds.add(f.id);
+        collectDescendants(f.id);
+      });
+    };
+    collectDescendants(ctxTarget.id);
+  }
+
+  const folders = DB.folders.filter(f => f.section === section && !excludeIds.has(f.id));
+
+  // Show which section the move is scoped to
+  const titleEl = document.querySelector('#move-modal .modal-title');
+  if (titleEl) titleEl.textContent = 'Move to ' + sectionLabel + '…';
+
+  let html = `<div class="move-item bloom" onclick="doMove(null)"><span data-icon="folder" data-sz="22"></span><div style="font-size:14px;font-weight:600">${sectionLabel} (top level)</div></div>`;
+  folders.forEach(f => { html += `<div class="move-item bloom" onclick="doMove('${f.id}')"><span data-icon="folder" data-sz="22"></span><div style="font-size:14px;font-weight:600">${escHtml(f.name)}</div></div>`; });
   document.getElementById('move-destinations').innerHTML = html;
   renderIcons(document.getElementById('move-destinations'));
   showModal('move-modal');
