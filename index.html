@@ -275,7 +275,7 @@
   .upload-area .ic { color: var(--accent); margin-bottom: 10px; }
   .upload-text { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
   .upload-sub { font-size: 13px; color: var(--text2); }
-  #file-input, #folder-input { display: none; }
+  #file-input { display: none; }
 
   .subtitle-prompt { background: rgba(157,92,255,.16); border: 1px solid var(--purple); border-radius: 14px; padding: 14px; margin: 12px 0; font-size: 13px; text-align: center; color: var(--accent); }
 
@@ -410,7 +410,7 @@
     <!-- hidden in HTML via init -->
   </div>
   <div class="storage-bar-wrap">
-    <div class="storage-label" id="storage-label">0 B / 256 GB used</div>
+    <div class="storage-label" id="storage-label">0 B stored</div>
     <div class="storage-bar"><div class="storage-fill" id="storage-fill"></div></div>
   </div>
 </div>
@@ -582,7 +582,7 @@
     <button class="nav-back bloom" onclick="closeAudioPlayer()"><span data-icon="chevron-left" data-sz="20"></span></button>
     <span class="nav-title" id="audio-nav-title">Now Playing</span>
     <div class="nav-actions">
-      <button class="nav-btn bloom" onclick="showQueuePanel()"><span data-icon="list" data-sz="16"></span></button>
+      <button class="nav-btn bloom" id="queue-nav-btn" onclick="showQueuePanel()"><span data-icon="list" data-sz="16"></span></button>
     </div>
   </div>
   <div class="music-art" id="music-art"><span data-icon="music" data-sz="72"></span></div>
@@ -718,9 +718,7 @@
       <div class="upload-text">Tap to choose files</div>
       <div class="upload-sub">Select as many as you like — hold to multi-select</div>
     </div>
-    <button class="btn-full secondary" onclick="document.getElementById('folder-input').click()"><span data-icon="folder" data-sz="16"></span> Upload a whole folder</button>
     <input type="file" id="file-input" multiple accept="*/*" onchange="handleFiles(this.files)">
-    <input type="file" id="folder-input" webkitdirectory directory multiple onchange="handleFiles(this.files)">
     <div id="upload-status" style="font-size:13px; color:var(--text2); margin-top:12px;"></div>
   </div>
 </div>
@@ -1267,7 +1265,6 @@ async function handleFiles(fileList) {
   setTimeout(() => { uploadQueue.length = 0; updateUploadTray(); if (uploadTrayOpen) toggleUploadTray(); }, 4000);
   if (srtPending.length) promptSrtAttach(srtPending[0]);
   document.getElementById('file-input').value = '';
-  document.getElementById('folder-input').value = '';
 
   // ── PHASE 2: Thumbnails — runs after all uploads are safely stored. ──
   // A crash here loses thumbnails only, never file data.
@@ -1401,8 +1398,8 @@ function renderFileList() {
   const sortComps = {
     'name-asc':  (a,b) => a.name.localeCompare(b.name, undefined, {numeric:true, sensitivity:'base'}),
     'name-desc': (a,b) => b.name.localeCompare(a.name, undefined, {numeric:true, sensitivity:'base'}),
-    'date-desc': (a,b) => b.dateAdded.localeCompare(a.dateAdded),
-    'date-asc':  (a,b) => a.dateAdded.localeCompare(b.dateAdded),
+    'date-desc': (a,b) => (b.dateAdded||'').localeCompare(a.dateAdded||''),
+    'date-asc':  (a,b) => (a.dateAdded||'').localeCompare(b.dateAdded||''),
     'size-desc': (a,b) => (b.size||0) - (a.size||0),
     'size-asc':  (a,b) => (a.size||0) - (b.size||0),
     'kind-asc':  (a,b) => (a.ext||'').localeCompare(b.ext||''),
@@ -1431,7 +1428,7 @@ function renderFileList() {
     html += `<div class="file-item bloom${locked?' pro-locked':''}${selectedItems.has(f.id)?' selected':''}" onclick="if(longPressActive){longPressActive=false;return;} selectMode?toggleSelectItem('${f.id}',this):openFile('${f.id}')" data-id="${f.id}">
       <div class="sel-check"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><polyline points="2,7 5.5,10.5 12,3" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
       <div class="file-thumb"><span data-icon="${fileIconName(f)}" data-sz="22"></span></div>
-      <div class="file-info"><div class="file-name">${f.name}</div><div class="file-meta">${formatBytes(f.size)} · ${f.ext.toUpperCase()}${locked?' · <span style="color:var(--gold);font-weight:900">PRO</span>':''} · ${new Date(f.dateAdded).toLocaleDateString()}</div>${(()=>{const ftags=(DB.fileTags[f.id]||[]).map(tid=>DB.tags.find(t=>t.id===tid)).filter(Boolean);return ftags.length?'<div style="display:flex;gap:4px;margin-top:3px">'+ftags.map(t=>`<div style="width:10px;height:10px;border-radius:50%;background:${t.color}"></div>`).join('')+'</div>':''})()}</div>
+      <div class="file-info"><div class="file-name">${f.name}</div><div class="file-meta">${formatBytes(f.size)} · ${(f.ext||'').toUpperCase()}${locked?' · <span style="color:var(--gold);font-weight:900">PRO</span>':''} · ${f.dateAdded?new Date(f.dateAdded).toLocaleDateString():''}</div>${(()=>{const ftags=(DB.fileTags[f.id]||[]).map(tid=>DB.tags.find(t=>t.id===tid)).filter(Boolean);return ftags.length?'<div style="display:flex;gap:4px;margin-top:3px">'+ftags.map(t=>`<div style="width:10px;height:10px;border-radius:50%;background:${t.color}"></div>`).join('')+'</div>':''})()}</div>
       <div class="file-arrow">${locked?'<span data-icon="star" data-sz="16" style="color:var(--gold)"></span>':'<span data-icon="chevron-right" data-sz="16"></span>'}</div></div>`;
   });
   list.innerHTML = html;
@@ -1476,6 +1473,9 @@ function filterBrowse() {
     </div>`;
   }).join('');
   renderIcons(results);
+  attachLongPress(results);
+  attachSwipeDelete(results);
+  loadThumbs(results);
 }
 function toggleSelectMode() { selectMode ? exitSelectMode() : enterSelectMode(); }
 function enterSelectMode() {
@@ -1607,8 +1607,9 @@ function buildBreadcrumb() {
   if (!currentFolder) { breadEl.innerHTML = ''; return; }
   const sectionLabel = {media:'Media', audio:'Audio', ebook:'eBooks', favorites:'Favorites'}[currentSection] || currentSection;
   const chain = [];
-  let fid = currentFolder;
-  while (fid) {
+  let fid = currentFolder, depth = 0;
+  while (fid && depth < 20) {
+    depth++;
     const f = DB.folders.find(x => x.id === fid);
     if (!f) break;
     chain.unshift(f);
@@ -1847,24 +1848,9 @@ async function openAudioPlayer(f) {
   const url = await blobURL(f.id, f.ext);
   hideLoader();
   audio.src = url;
-  audio.onerror = async () => {
-    const dlUrl = await blobURL(f.id, f.ext);
-    const audioHint = IS_ELECTRON
-      ? 'Convert to MP3 or M4A and re-import for playback.'
-      : 'Download it and open in a compatible audio player.';
-    document.getElementById('audio-player-screen').innerHTML = `
-      <div class="nav">
-        <button class="nav-back bloom" onclick="closeAudioPlayer()"><span data-icon="chevron-left" data-sz="20"></span></button>
-        <span class="nav-title">${escHtml(f.name)}</span>
-      </div>
-      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;padding:40px 24px;text-align:center;color:var(--text2)">
-        ${buildIcon('music',56,false)}
-        <p style="margin:20px 0 6px;font-size:18px;font-weight:900;color:var(--text)">Unsupported Audio</p>
-        <p style="font-size:14px;margin-bottom:6px">Can't play <b style="color:var(--text)">${f.ext.toUpperCase()}</b> files.</p>
-        <p style="font-size:12px;margin-bottom:24px">${audioHint}</p>
-        ${dlUrl ? `<a href="${dlUrl}" download="${escHtml(f.name)}" class="btn-full" style="display:inline-block;text-decoration:none;padding:13px 24px;max-width:260px">Download ${f.ext.toUpperCase()}</a>` : ''}
-      </div>`;
-    renderIcons(document.getElementById('audio-player-screen'));
+  audio.onerror = () => {
+    closeAudioPlayer();
+    toast('Can\'t play ' + (f.ext||'').toUpperCase() + ' — save it and open in a compatible player');
   };
   document.getElementById('music-title').textContent = f.name.replace(/\.[^.]+$/,'');
   document.getElementById('music-artist').textContent = f.ext.toUpperCase();
@@ -1917,7 +1903,9 @@ function closeAudioPlayer(){ const a=document.getElementById('main-audio'); a.pa
 function showQueuePanel(){ document.getElementById('music-queue').scrollIntoView({behavior:'smooth'}); }
 function renderMusicQueue(){
   const q = document.getElementById('music-queue');
-  if (musicSiblings.length < 2){ q.innerHTML=''; return; }
+  const qBtn = document.getElementById('queue-nav-btn');
+  if (musicSiblings.length < 2){ q.innerHTML=''; if (qBtn) qBtn.style.display='none'; return; }
+  if (qBtn) qBtn.style.display='';
   q.innerHTML = '<div class="queue-head">Queue</div><div class="queue-wrap">' + musicSiblings.map((f,i)=>`
     <div class="queue-item ${i===currentMusicIndex?'playing':''}" onclick="openAudioPlayer(musicSiblings[${i}])">
       <div class="queue-num">${i===currentMusicIndex?'<span data-icon=play data-sz=12 data-fill=1></span>':i+1}</div>
@@ -2199,12 +2187,16 @@ async function genAndStoreThumb(f, blob) {
     if (thumb) await idbPut('thumb_' + f.id, thumb);
   } catch(e) {}
 }
+let _thumbGen = 0;
 async function loadThumbs(container) {
+  const gen = ++_thumbGen;
   for (const el of container.querySelectorAll('[data-id]')) {
+    if (_thumbGen !== gen) return; // a newer render started — abort this pass
     const id = el.dataset.id;
     const f = DB.files.find(x => x.id === id);
     if (!f || f.section === 'audio') continue;
     const thumbBlob = await idbGet('thumb_' + id);
+    if (_thumbGen !== gen) return;
     if (!thumbBlob) continue;
     const thumb = el.querySelector('.file-thumb');
     if (!thumb || thumb.querySelector('img')) continue;
@@ -2660,16 +2652,16 @@ function toggleEbookTTS() {
   // chunk into sentences for smoother, less breathless delivery
   const chunks = text.match(/[^.!?]+[.!?]*\s*/g) || [text];
   if (!preferredVoice) preferredVoice = pickVoice();
+  ttsCancelled = false;
   let i = 0;
   const speakNext = () => {
-    if (i >= chunks.length || !speechSynthesis.speaking && i>0 && cancelled) return;
+    if (i >= chunks.length || (!speechSynthesis.speaking && i > 0 && ttsCancelled)) return;
     const u = new SpeechSynthesisUtterance(chunks[i].trim());
     if (preferredVoice) u.voice = preferredVoice;
     u.rate = 0.9; u.pitch = 1.02; u.volume = 1;
     u.onend = () => { i++; if (i < chunks.length) speakNext(); };
     speechSynthesis.speak(u);
   };
-  let cancelled = false;
   speakNext();
   toast('Reading aloud…');
 }
@@ -2789,6 +2781,8 @@ function openCtx(e, id, isFolder) {
   // Show/hide file-only items
   const newFolderItem = document.getElementById('ctx-newfolder-item');
   if (newFolderItem) newFolderItem.style.display = isFolder ? 'none' : '';
+  const tagItem = document.getElementById('ctx-tag-item');
+  if (tagItem) tagItem.style.display = isFolder ? 'none' : '';
   // Update favorites label based on current state
   const favItem = document.getElementById('ctx-fav-item');
   if (favItem) {
@@ -3484,9 +3478,13 @@ function restoreAllTrash() {
 function toggleUploadTray() {
   uploadTrayOpen = !uploadTrayOpen;
   const panel = document.getElementById('upload-tray-panel');
-  if (panel) {
+  if (!panel) return;
+  if (uploadTrayOpen) {
     panel.style.display = 'block';
-    requestAnimationFrame(() => panel.classList.toggle('open', uploadTrayOpen));
+    requestAnimationFrame(() => panel.classList.add('open'));
+  } else {
+    panel.classList.remove('open');
+    setTimeout(() => { if (!uploadTrayOpen) panel.style.display = 'none'; }, 300);
   }
 }
 function updateUploadTray() {
